@@ -1,41 +1,19 @@
 import type { ReactNode } from 'react';
-import CartDrawer from './CartDrawer';
-import CartFlyout from './CartFlyout';
-import CartMotionLayer from './CartMotionLayer';
-import Footer from './Footer';
 import Navbar from './Navbar';
-import AnnouncementBar from './platform/AnnouncementBar';
-import { useSessionStore } from '../store/session';
+import Footer from './Footer';
+import SessionBootstrap from './SessionBootstrap';
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const maintenanceMode = useSessionStore((state) => state.maintenanceMode);
-  const role = useSessionStore((state) => state.role);
-  const blocked = maintenanceMode && role !== 'admin' && role !== 'super-admin' && role !== 'moderator';
-
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#050505] text-bone">
+    <div className="min-h-screen bg-[#050505] text-bone">
+      <SessionBootstrap />
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="ambient-orb left-[8%] top-12" />
-        <div className="ambient-orb right-[8%] top-[26%]" />
-        <div className="ambient-grid" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.035),transparent_25%),linear-gradient(180deg,#050505_0%,#090909_45%,#040404_100%)]" />
+        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '90px 90px', maskImage: 'radial-gradient(circle at center, black, transparent 72%)' }} />
       </div>
-      <AnnouncementBar />
       <Navbar />
-      <main>
-        {blocked ? (
-          <div className="shell py-20">
-            <div className="page-hero rounded-[2.75rem] border border-white/10 p-8 md:p-12">
-              <p className="eyebrow">Maintenance mode</p>
-              <h1 className="headline-lg mt-3">STATIK is temporarily paused for public access.</h1>
-              <p className="body-muted mt-5 max-w-2xl text-base">Admin and moderation access stays live so the operations team can manage imports, approvals, and site-level settings.</p>
-            </div>
-          </div>
-        ) : children}
-      </main>
+      <main>{children}</main>
       <Footer />
-      <CartDrawer />
-      <CartFlyout />
-      <CartMotionLayer />
     </div>
   );
 }

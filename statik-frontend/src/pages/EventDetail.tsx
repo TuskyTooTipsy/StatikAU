@@ -1,102 +1,109 @@
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { events, officialPosts, partnerPlacements, profiles } from '../data/platform';
-import { usePageMeta } from '../hooks/usePageMeta';
+import EmptyPanel from '../components/EmptyPanel';
+import AvatarBadge from '../components/AvatarBadge';
+import { networkApi } from '../api/network';
+import { useSessionStore } from '../store/session';
+import type { NetworkEvent } from '../types/network';
 
-export default function EventDetail() {
-  const { slug } = useParams();
-  const event = events.find((item) => item.slug === slug) || events[0];
-  const relatedProfiles = profiles.slice(0, 2);
-
-  usePageMeta(event.name, event.description);
-
+function attendeeStrip(title: string, items: any[]) {
   return (
-    <div className="space-y-10 pb-12 pt-8">
-      <section className="shell">
-        <div className="relative overflow-hidden rounded-[2.75rem] border border-white/10">
-          <img src={event.heroImage} alt={event.name} className="h-[460px] w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/15" />
-          <div className="absolute inset-x-0 bottom-0 p-6 md:p-10">
-            <div className="max-w-4xl">
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/10 bg-black/45 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-bone">{event.category}</span>
-                <span className="rounded-full border border-white/10 bg-black/45 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-silver/65">{event.sourceLabel}</span>
-              </div>
-              <h1 className="headline-lg mt-4">{event.name}</h1>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-silver/74">{event.description}</p>
-              <div className="mt-6 flex flex-wrap gap-4 text-sm text-bone">
-                <span>{event.location}</span>
-                <span>•</span>
-                <span>{event.date}</span>
-                <span>•</span>
-                <span>{event.time}</span>
-                <span>•</span>
-                <span>{event.organizer}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      <section className="shell grid gap-8 xl:grid-cols-[1fr_340px]">
-        <div className="space-y-6">
-          <div className="panel p-6 md:p-8">
-            <p className="eyebrow">About this event</p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase tracking-[0.24em] text-silver/50">Approval</p><p className="mt-3 text-lg font-semibold text-bone">{event.approvalStatus}</p></div>
-              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase tracking-[0.24em] text-silver/50">Source</p><p className="mt-3 text-lg font-semibold text-bone">{event.source}</p></div>
-              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase tracking-[0.24em] text-silver/50">Attendance</p><p className="mt-3 text-lg font-semibold text-bone">{event.attendanceLabel}</p></div>
-              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase tracking-[0.24em] text-silver/50">Tags</p><p className="mt-3 text-lg font-semibold text-bone">{event.tags.join(' / ')}</p></div>
-            </div>
-            <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-sm leading-8 text-silver/72">
-                This page is designed to attract real attendance and monetize attention. It supports sponsor rails, community spotlights, media galleries, related posts, and clear share surfaces without feeling like a ticketing SaaS template.
-              </p>
-            </div>
-          </div>
-          <div className="panel p-6 md:p-8">
-            <p className="eyebrow">Related STATIK coverage</p>
-            <div className="mt-4 space-y-4">
-              {officialPosts.slice(0, 2).map((post) => (
-                <div key={post.id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm font-semibold text-bone">{post.title}</p>
-                  <p className="mt-2 text-sm leading-7 text-silver/65">{post.excerpt}</p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold tracking-[-0.04em] text-bone">{title}</h3>
+        <span className="text-[11px] uppercase tracking-[0.24em] text-silver/56">{items.length}</span>
+      </div>
+      {items.length ? (
+        <div className="flex gap-3 overflow-x-auto pb-2 custom-scroll">
+          {items.map((profile) => (
+            <Link key={profile.id} to={`/profiles/${profile.slug}`} className="min-w-[220px] panel-blade">
+              <div className="flex items-center gap-3">
+                <AvatarBadge name={profile.displayName} src={profile.avatarUrl} size="md" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-bone">{profile.displayName}</p>
+                    {profile.verified ? <span className="status-chip">verified</span> : null}
+                  </div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-silver/50">{profile.primaryCar || 'Member'}</p>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            </Link>
+          ))}
         </div>
-        <div className="space-y-5">
-          <div className="panel p-6">
-            <p className="eyebrow">Actions</p>
-            <div className="mt-4 grid gap-3">
-              <button type="button" className="btn-primary h-11 justify-center text-xs">Share event</button>
-              <button type="button" className="btn-secondary h-11 justify-center text-xs">Save interest</button>
-              <Link to="/submit" className="btn-secondary h-11 justify-center text-xs">Submit media from this event</Link>
-            </div>
-          </div>
-          <div className="panel p-6">
-            <p className="eyebrow">Featured profiles attending</p>
-            <div className="mt-4 space-y-4">
-              {relatedProfiles.map((profile) => (
-                <Link key={profile.id} to={`/u/${profile.slug}`} className="block rounded-[1.5rem] border border-white/10 bg-white/5 p-4 transition hover:border-white/20">
-                  <p className="text-sm font-semibold text-bone">{profile.displayName}</p>
-                  <p className="mt-2 text-sm text-silver/65">{profile.primaryCar}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-          <div className="panel p-6">
-            <p className="eyebrow">Sponsored placement rail</p>
-            <div className="mt-4 space-y-4">
-              {partnerPlacements.map((placement) => (
-                <div key={placement.title} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm font-semibold text-bone">{placement.title}</p>
-                  <p className="mt-2 text-sm leading-7 text-silver/65">{placement.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      ) : (
+        <EmptyPanel eyebrow={title} title={`Nobody marked ${title.toLowerCase()} yet`} body="That state will show up here as soon as real members interact with the event." />
+      )}
     </div>
   );
+}
+
+export default function EventDetailPage() {
+  const { slug = '' } = useParams();
+  const [event, setEvent] = useState<NetworkEvent | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const viewerUser = useSessionStore((state) => state.viewerUser);
+
+  useEffect(() => {
+    networkApi.getEvent(slug).then(setEvent).catch((err) => setError(err.message));
+  }, [slug]);
+
+  async function handleRsvp(status: 'interested' | 'attending' | 'maybe') {
+    if (!event) return;
+    try {
+      const updated = await networkApi.rsvpEvent(event.id, status);
+      setEvent(updated);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
+
+  if (!event && !error) {
+    return <div className="shell py-20"><div className="panel-cut p-8">Loading event…</div></div>;
+  }
+
+  if (error) {
+    return <div className="shell py-20"><EmptyPanel eyebrow="Event" title="This event is unavailable" body={error} /></div>;
+  }
+
+  return event ? (
+    <div className="shell space-y-8 pb-16 pt-8">
+      <div className="page-hero-cut p-6 md:p-8 xl:p-10">
+        <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <p className="eyebrow">{event.category}</p>
+            <h1 className="headline-lg mt-3">{event.name}</h1>
+            <p className="mt-4 text-base text-silver/72">{event.location} • {event.date} • {event.time}</p>
+            <p className="body-muted mt-5 max-w-3xl">{event.description}</p>
+          </div>
+          <div className="panel-cut p-5">
+            <p className="eyebrow">Live intent</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="stat-block"><span className="stat-value">{event.counts?.attending ?? 0}</span><span className="stat-label">attending</span></div>
+              <div className="stat-block"><span className="stat-value">{event.counts?.interested ?? 0}</span><span className="stat-label">interested</span></div>
+              <div className="stat-block"><span className="stat-value">{event.counts?.maybe ?? 0}</span><span className="stat-label">maybe</span></div>
+            </div>
+            {viewerUser ? (
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button type="button" onClick={() => handleRsvp('interested')} className={`btn-secondary h-11 px-4 text-[11px] ${event.viewerStatus === 'interested' ? 'ring-1 ring-white/30' : ''}`}>Interested</button>
+                <button type="button" onClick={() => handleRsvp('attending')} className={`btn-primary h-11 px-4 text-[11px] ${event.viewerStatus === 'attending' ? 'ring-1 ring-[#efefef]/30' : ''}`}>Attending</button>
+                <button type="button" onClick={() => handleRsvp('maybe')} className={`btn-secondary h-11 px-4 text-[11px] ${event.viewerStatus === 'maybe' ? 'ring-1 ring-white/30' : ''}`}>Maybe</button>
+              </div>
+            ) : (
+              <div className="mt-5"><Link to="/join" className="btn-primary h-11 px-4 text-[11px]">Sign up to react</Link></div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {attendeeStrip('Attending', event.notable?.attending || [])}
+      {attendeeStrip('Interested', event.notable?.interested || [])}
+      {attendeeStrip('Maybe', event.notable?.maybe || [])}
+
+      <div className="panel-cut p-6 md:p-8">
+        <p className="eyebrow">Discussion flow</p>
+        <h2 className="headline-md mt-3">Event mentions are built to be dropped into community chat.</h2>
+        <p className="body-muted mt-4 max-w-3xl">Members can attach this event directly inside any community they’re in, so the social planning layer lives with the group instead of dying in isolated DMs.</p>
+      </div>
+    </div>
+  ) : null;
 }

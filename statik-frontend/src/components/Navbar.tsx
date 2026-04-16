@@ -1,74 +1,102 @@
-import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { useCartStore } from '../store/cart';
 import BrandLogo from './platform/BrandLogo';
 import { useSessionStore } from '../store/session';
+import { networkApi } from '../api/network';
 
 const publicLinks = [
   { label: 'Home', href: '/' },
-  { label: 'Updates', href: '/updates' },
   { label: 'Events', href: '/events' },
-  { label: 'Community', href: '/community' },
-  { label: 'Submit', href: '/submit' },
-  { label: 'Shop', href: '/shop' },
-  { label: 'Search', href: '/search' },
 ];
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const itemCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
-  const openCart = useCartStore((state) => state.openDrawer);
-  const role = useSessionStore((state) => state.role);
+  const viewerUser = useSessionStore((state) => state.viewerUser);
+  const site = useSessionStore((state) => state.site);
+  const clearSession = useSessionStore((state) => state.clearSession);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
+  async function handleLogout() {
+    try {
+      await networkApi.logout();
+    } catch {
+      // ignore logout failures
+    }
+    clearSession();
+    setMobileOpen(false);
+  }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050505]/85 backdrop-blur-2xl">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050505]/88 backdrop-blur-2xl">
       <div className="shell flex h-20 items-center justify-between gap-6">
         <BrandLogo />
         <nav className="hidden items-center gap-2 lg:flex">
           {publicLinks.map((link) => (
-            <NavLink
-              key={link.href}
-              to={link.href}
-              end={link.href === '/'}
-              className={({ isActive }) => `rounded-full px-4 py-2 text-xs uppercase tracking-[0.24em] transition ${isActive ? 'bg-white/10 text-bone' : 'text-silver/64 hover:bg-white/5 hover:text-bone'}`}
-            >
+            <NavLink key={link.href} to={link.href} end={link.href === '/'} className={({ isActive }) => `nav-pill ${isActive ? 'nav-pill-active' : ''}`}>
               {link.label}
             </NavLink>
           ))}
+          {viewerUser ? (
+            <>
+              <NavLink to="/members" className={({ isActive }) => `nav-pill ${isActive ? 'nav-pill-active' : ''}`}>Members</NavLink>
+              <NavLink to="/members/communities" className={({ isActive }) => `nav-pill ${isActive ? 'nav-pill-active' : ''}`}>Communities</NavLink>
+              <NavLink to="/members/friends" className={({ isActive }) => `nav-pill ${isActive ? 'nav-pill-active' : ''}`}>Friends</NavLink>
+            </>
+          ) : null}
+          {site && !site.shopLocked ? <NavLink to="/shop" className={({ isActive }) => `nav-pill ${isActive ? 'nav-pill-active' : ''}`}>Shop</NavLink> : null}
         </nav>
         <div className="flex items-center gap-2">
-          <Link to="/account" className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.24em] text-silver/70 transition hover:text-bone lg:inline-flex">Account</Link>
-          {role === 'admin' || role === 'super-admin' || role === 'moderator' ? (
-            <Link to="/admin" className="hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.24em] text-silver/70 transition hover:text-bone lg:inline-flex">Admin</Link>
-          ) : null}
-          <button type="button" onClick={openCart} className="relative rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.24em] text-bone">
-            Cart
-            {itemCount > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white text-[10px] text-black">{itemCount}</span> : null}
-          </button>
-          <button type="button" onClick={() => setMobileOpen(true)} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.24em] text-bone lg:hidden">Menu</button>
+          {viewerUser ? (
+            <>
+              {viewerUser.role === 'admin' ? <Link to="/admin" className="btn-secondary h-11 px-4 text-[11px]">Admin</Link> : null}
+              <Link to="/members/profile" className="btn-secondary hidden h-11 px-4 text-[11px] md:inline-flex">Profile</Link>
+              <button type="button" onClick={handleLogout} className="btn-primary h-11 px-4 text-[11px]">Leave session</button>
+            </>
+          ) : (
+            <>
+              <Link to="/sign-in" className="btn-secondary hidden h-11 px-4 text-[11px] sm:inline-flex">Sign in</Link>
+              <Link to="/join" className="btn-primary h-11 px-4 text-[11px]">Join STATIK</Link>
+            </>
+          )}
+          <button type="button" onClick={() => setMobileOpen(true)} className="btn-secondary h-11 px-4 text-[11px] lg:hidden">Menu</button>
         </div>
       </div>
-      <AnimatePresence>
-        {mobileOpen ? (
-          <>
-            <motion.button type="button" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[55] bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
-            <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed right-0 top-0 z-[56] h-screen w-full max-w-sm overflow-y-auto border-l border-white/10 bg-[#050505] p-6 lg:hidden">
-              <div className="flex items-center justify-between border-b border-white/10 pb-5">
-                <BrandLogo compact />
-                <button type="button" className="btn-secondary h-11 px-4 text-xs" onClick={() => setMobileOpen(false)}>Close</button>
-              </div>
-              <div className="mt-6 space-y-4">
-                {publicLinks.map((link) => (
-                  <Link key={link.href} to={link.href} onClick={() => setMobileOpen(false)} className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-bone">{link.label}</Link>
-                ))}
-                <Link to="/account" onClick={() => setMobileOpen(false)} className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-bone">Account</Link>
-                {role === 'admin' || role === 'super-admin' || role === 'moderator' ? <Link to="/admin" onClick={() => setMobileOpen(false)} className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-bone">Admin</Link> : null}
-              </div>
-            </motion.aside>
-          </>
-        ) : null}
-      </AnimatePresence>
+      {mobileOpen ? (
+        <div className="lg:hidden">
+          <button type="button" className="fixed inset-0 z-[70] bg-black/80" onClick={() => setMobileOpen(false)} />
+          <aside className="fixed right-0 top-0 z-[71] h-screen w-[88vw] max-w-sm border-l border-white/10 bg-[#050505] p-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-5">
+              <BrandLogo compact />
+              <button type="button" className="btn-secondary h-10 px-4 text-[11px]" onClick={() => setMobileOpen(false)}>Close</button>
+            </div>
+            <div className="mt-6 grid gap-3">
+              {publicLinks.map((link) => <Link key={link.href} to={link.href} onClick={() => setMobileOpen(false)} className="mobile-nav-link">{link.label}</Link>)}
+              {viewerUser ? (
+                <>
+                  <Link to="/members" onClick={() => setMobileOpen(false)} className="mobile-nav-link">Members</Link>
+                  <Link to="/members/communities" onClick={() => setMobileOpen(false)} className="mobile-nav-link">Communities</Link>
+                  <Link to="/members/friends" onClick={() => setMobileOpen(false)} className="mobile-nav-link">Friends</Link>
+                  <Link to="/members/profile" onClick={() => setMobileOpen(false)} className="mobile-nav-link">Profile</Link>
+                  {viewerUser.role === 'admin' ? <Link to="/admin" onClick={() => setMobileOpen(false)} className="mobile-nav-link">Admin</Link> : null}
+                  {site && !site.shopLocked ? <Link to="/shop" onClick={() => setMobileOpen(false)} className="mobile-nav-link">Shop</Link> : null}
+                  <button type="button" onClick={handleLogout} className="btn-primary mt-2 h-11 justify-center text-[11px]">Leave session</button>
+                </>
+              ) : (
+                <>
+                  <Link to="/sign-in" onClick={() => setMobileOpen(false)} className="mobile-nav-link">Sign in</Link>
+                  <Link to="/join" onClick={() => setMobileOpen(false)} className="btn-primary mt-2 h-11 justify-center text-[11px]">Join STATIK</Link>
+                </>
+              )}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </header>
   );
 }
