@@ -1,20 +1,21 @@
 import { Router } from 'express';
-import { platformEvents, platformPosts, platformProfiles, platformSubmissions } from '../data/platform';
+import { readDb } from '../lib/store';
 
 export default function searchRouter() {
   const router = Router();
 
   router.get('/', async (req, res) => {
-    const q = typeof req.query.q === 'string' ? req.query.q.toLowerCase() : '';
-    const index = [
-      ...platformEvents.map((item) => ({ type: 'event', title: item.name, description: item.description, href: `/events/${item.slug}` })),
-      ...platformPosts.map((item) => ({ type: 'post', title: item.title, description: item.excerpt, href: '/updates' })),
-      ...platformProfiles.map((item) => ({ type: 'profile', title: item.displayName, description: item.primaryCar, href: `/u/${item.slug}` })),
-      ...platformSubmissions.map((item) => ({ type: 'submission', title: item.title, description: item.status, href: '/account/submissions' })),
-    ];
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
+    if (!q) return res.json([]);
 
-    if (!q) return res.json(index);
-    return res.json(index.filter((item) => `${item.title} ${item.description} ${item.type}`.toLowerCase().includes(q)));
+    const db = readDb();
+    const results = [
+      ...db.events.filter((event) => event.approvalStatus === 'approved' && `${event.name} ${event.location} ${event.description}`.toLowerCase().includes(q)).map((event) => ({ id: event.id, type: 'event', title: event.name, description: event.location, href: `/events/${event.slug}` })),
+      ...db.profiles.filter((profile) => `${profile.displayName} ${profile.bio} ${profile.location}`.toLowerCase().includes(q)).map((profile) => ({ id: profile.id, type: 'profile', title: profile.displayName, description: profile.bio || 'STATIK member', href: `/members/profiles/${profile.slug}` })),
+      ...db.communities.filter((community) => `${community.name} ${community.description}`.toLowerCase().includes(q)).map((community) => ({ id: community.id, type: 'community', title: community.name, description: community.description, href: `/members/communities/${community.slug}` })),
+    ].slice(0, 20);
+
+    return res.json(results);
   });
 
   return router;
