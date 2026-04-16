@@ -1,0 +1,14 @@
+[build]
+  base = "statik-frontend"
+  command = "npm ci --include=dev --no-audit --no-fund && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--include=dev --no-audit --no-fund"
+  CI = "true"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

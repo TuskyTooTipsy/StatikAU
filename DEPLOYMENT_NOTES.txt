@@ -1,0 +1,26 @@
+STATIK NETLIFY DEPLOY NOTES
+
+This repo is set up so Netlify should deploy from the REPO ROOT.
+Do not set a Base directory.
+Do not set a Build command manually.
+Do not set a Publish directory manually.
+Do not set a Functions directory manually.
+
+Netlify should read these values from the root netlify.toml.
+
+Expected repo root structure:
+- netlify.toml
+- statik-frontend/
+- statik-backend/
+
+Frontend build is handled by:
+cd statik-frontend && npm install --no-audit --no-fund && npm run build
+
+Required Netlify environment variables:
+- VITE_API_BASE_URL=https://YOUR-BACKEND-DOMAIN/api
+- VITE_STRIPE_PUBLISHABLE_KEY=pk_live_or_test_key_if_used
+
+Notes:
+- frontend package-lock.json was intentionally removed because the old lockfile referenced a private registry and broke Netlify installs
+- frontend build tooling was moved into dependencies so hosts that skip devDependencies still install vite
+- extra frontend netlify.toml was removed so only the root config is used
