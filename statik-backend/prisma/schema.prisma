@@ -1,0 +1,758 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRoleType {
+  GUEST
+  USER
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  BANNED
+  SUSPENDED
+}
+
+enum ModerationStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+  ARCHIVED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum ReactionType {
+  LIKE
+  FIRE
+  BOOST
+  CHECKER
+}
+
+enum SubmissionType {
+  EVENT
+  GALLERY
+  VIDEO
+  SPOTLIGHT
+  SPONSOR
+  DEAL
+  BUSINESS_PROMO
+}
+
+enum ReportTargetType {
+  COMMENT
+  PROFILE
+  POST
+  EVENT
+  SUBMISSION
+  MEDIA
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ImportJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum EventSourceType {
+  INTERNAL
+  USER_SUBMISSION
+  SCRAPER
+  CSV_IMPORT
+  API_IMPORT
+  PARTNER
+}
+
+enum AnnouncementTone {
+  INFO
+  WARNING
+  SUCCESS
+}
+
+model Product {
+  id           String           @id @default(uuid())
+  title        String
+  slug         String           @unique
+  shortDesc    String
+  description  String
+  price        Float
+  compareAt    Float?
+  isVisible    Boolean          @default(true)
+  featureRank  Int              @default(0)
+  variants     ProductVariant[]
+  images       ProductImage[]
+  collection   Collection?      @relation(fields: [collectionId], references: [id])
+  collectionId String?
+  tags         String[]
+  orderItems   OrderItem[]
+  mappings     PrintfulMapping[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model ProductVariant {
+  id        String   @id @default(uuid())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  name      String
+  price     Float
+  sku       String
+  options   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  url       String
+  alt       String
+  position  Int
+}
+
+model Collection {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Order {
+  id            String             @id @default(uuid())
+  customer      Customer           @relation(fields: [customerId], references: [id])
+  customerId    String
+  items         OrderItem[]
+  total         Float
+  status        String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  payment       PaymentRecord?
+  fulfillment   FulfillmentRecord?
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  price     Float
+}
+
+model Customer {
+  id       String   @id @default(uuid())
+  email    String   @unique
+  name     String?
+  address  Address?
+  orders   Order[]
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String   @unique
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postal     String
+  country    String
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model ContactSubmission {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model FulfillmentRecord {
+  id         String   @id @default(uuid())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    String   @unique
+  printfulId String?
+  status     String
+  data       Json?
+}
+
+model PaymentRecord {
+  id        String   @id @default(uuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String   @unique
+  stripeId  String?
+  amount    Float
+  currency  String
+  status    String
+  createdAt DateTime @default(now())
+}
+
+model PrintfulMapping {
+  id         String   @id @default(uuid())
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  printfulId String
+}
+
+model User {
+  id                  String                 @id @default(uuid())
+  email               String                 @unique
+  username            String                 @unique
+  passwordHash        String?
+  displayName         String?
+  role                UserRoleType           @default(USER)
+  status              UserStatus             @default(PENDING)
+  profile             Profile?
+  sessions            UserSession[]
+  identities          AuthIdentity[]
+  comments            Comment[]
+  reactions           Reaction[]
+  eventSubmissions    EventSubmission[]
+  submissions         Submission[]
+  notifications       Notification[]
+  interestedEvents    InterestedEvent[]
+  reportsCreated      Report[]                @relation("ReportCreatedBy")
+  reportsReviewed     Report[]                @relation("ReportReviewedBy")
+  bansReceived        UserBan[]               @relation("UserBanTarget")
+  bansIssued          UserBan[]               @relation("UserBanIssuedBy")
+  moderationActions   ModerationAction[]      @relation("ModerationActionActor")
+  auditLogs           AuditLog[]              @relation("AuditLogActor")
+  siteAnnouncements   SiteAnnouncement[]      @relation("SiteAnnouncementAuthor")
+  officialPosts       OfficialPost[]          @relation("OfficialPostAuthor")
+  submissionReviews   SubmissionReview[]      @relation("SubmissionReviewReviewer")
+  adminAssignments    AdminRoleAssignment[]
+  maintenanceUpdates  MaintenanceState[]      @relation("MaintenanceUpdatedBy")
+  managedPages        ManagedPage[]           @relation("ManagedPageUpdatedBy")
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+}
+
+model UserSession {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model AuthIdentity {
+  id                String   @id @default(uuid())
+  user              User     @relation(fields: [userId], references: [id])
+  userId            String
+  provider          String
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  createdAt         DateTime @default(now())
+
+  @@unique([provider, providerAccountId])
+}
+
+model Profile {
+  id              String                    @id @default(uuid())
+  user            User                      @relation(fields: [userId], references: [id])
+  userId          String                    @unique
+  slug            String                    @unique
+  displayName     String
+  avatarUrl       String?
+  bannerUrl       String?
+  bio             String?
+  location        String?
+  primaryCar      String?
+  themePreset     String?
+  featured        Boolean                   @default(false)
+  links           ProfileLink[]
+  garageVehicles  GarageVehicle[]
+  media           ProfileMedia[]
+  analytics       ProfileAnalyticsSnapshot[]
+  qrCodes         ProfileQRCode[]
+  comments        Comment[]                 @relation("CommentProfile")
+  reports         Report[]                  @relation("ReportProfile")
+  featureSlots    FeaturePlacement[]        @relation("FeaturePlacementProfile")
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+}
+
+model ProfileLink {
+  id         String   @id @default(uuid())
+  profile    Profile  @relation(fields: [profileId], references: [id])
+  profileId  String
+  label      String
+  href       String
+  type       String
+  clickCount Int      @default(0)
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model GarageVehicle {
+  id          String   @id @default(uuid())
+  profile     Profile  @relation(fields: [profileId], references: [id])
+  profileId   String
+  name        String
+  chassis     String
+  power       String?
+  setup       String?
+  imageUrl    String?
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProfileMedia {
+  id              String           @id @default(uuid())
+  profile         Profile          @relation(fields: [profileId], references: [id])
+  profileId       String
+  mediaType       MediaType
+  url             String
+  posterUrl       String?
+  caption         String?
+  durationSeconds Int?
+  status          ModerationStatus @default(PENDING)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model ProfileAnalyticsSnapshot {
+  id           String   @id @default(uuid())
+  profile      Profile  @relation(fields: [profileId], references: [id])
+  profileId    String
+  snapshotDate DateTime
+  profileViews Int      @default(0)
+  qrScans      Int      @default(0)
+  linkClicks   Int      @default(0)
+  interactions Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@unique([profileId, snapshotDate])
+}
+
+model ProfileQRCode {
+  id         String   @id @default(uuid())
+  profile    Profile  @relation(fields: [profileId], references: [id])
+  profileId  String
+  codeSlug   String   @unique
+  destinationUrl String
+  imageUrl   String?
+  isPrimary  Boolean  @default(false)
+  scanCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model OfficialPost {
+  id           String              @id @default(uuid())
+  author       User?               @relation("OfficialPostAuthor", fields: [authorId], references: [id])
+  authorId     String?
+  title        String
+  slug         String              @unique
+  excerpt      String?
+  body         String
+  category     String?
+  status       ModerationStatus    @default(PENDING)
+  pinned       Boolean             @default(false)
+  featured     Boolean             @default(false)
+  publishedAt  DateTime?
+  media        OfficialPostMedia[]
+  comments     Comment[]           @relation("CommentPost")
+  reactions    Reaction[]          @relation("ReactionPost")
+  reports      Report[]            @relation("ReportPost")
+  featureSlots FeaturePlacement[]  @relation("FeaturePlacementPost")
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model OfficialPostMedia {
+  id              String    @id @default(uuid())
+  post            OfficialPost @relation(fields: [postId], references: [id])
+  postId          String
+  mediaType       MediaType
+  url             String
+  posterUrl       String?
+  durationSeconds Int?
+  position        Int       @default(0)
+  createdAt       DateTime  @default(now())
+}
+
+model Comment {
+  id          String           @id @default(uuid())
+  user        User?            @relation(fields: [userId], references: [id])
+  userId      String?
+  post        OfficialPost?    @relation("CommentPost", fields: [postId], references: [id])
+  postId      String?
+  event       Event?           @relation("CommentEvent", fields: [eventId], references: [id])
+  eventId     String?
+  profile     Profile?         @relation("CommentProfile", fields: [profileId], references: [id])
+  profileId   String?
+  parent      Comment?         @relation("CommentThread", fields: [parentId], references: [id])
+  parentId    String?
+  replies     Comment[]        @relation("CommentThread")
+  body        String
+  status      ModerationStatus @default(PENDING)
+  reactions   Reaction[]       @relation("ReactionComment")
+  reports     Report[]         @relation("ReportComment")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Reaction {
+  id         String        @id @default(uuid())
+  user       User          @relation(fields: [userId], references: [id])
+  userId     String
+  type       ReactionType  @default(LIKE)
+  post       OfficialPost? @relation("ReactionPost", fields: [postId], references: [id])
+  postId     String?
+  comment    Comment?      @relation("ReactionComment", fields: [commentId], references: [id])
+  commentId  String?
+  event      Event?        @relation("ReactionEvent", fields: [eventId], references: [id])
+  eventId    String?
+  createdAt  DateTime      @default(now())
+}
+
+model EventSource {
+  id             String            @id @default(uuid())
+  name           String
+  slug           String            @unique
+  type           EventSourceType
+  baseUrl        String?
+  isActive       Boolean           @default(true)
+  config         Json?
+  events         Event[]
+  importJobs     EventImportJob[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model EventImportJob {
+  id             String          @id @default(uuid())
+  source         EventSource     @relation(fields: [sourceId], references: [id])
+  sourceId       String
+  status         ImportJobStatus @default(QUEUED)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  rawCount       Int             @default(0)
+  stagedCount    Int             @default(0)
+  approvedCount  Int             @default(0)
+  duplicateCount Int             @default(0)
+  log            Json?
+  createdAt      DateTime        @default(now())
+}
+
+model Event {
+  id             String             @id @default(uuid())
+  slug           String             @unique
+  name           String
+  location       String
+  dateLabel      String?
+  timeLabel      String?
+  timezone       String?
+  startsAt       DateTime?
+  endsAt         DateTime?
+  description    String
+  category       String?
+  heroImageUrl   String?
+  organizer      String?
+  sourceLabel    String?
+  approvalStatus ModerationStatus   @default(PENDING)
+  isFeatured     Boolean            @default(false)
+  isSponsored    Boolean            @default(false)
+  isRecurring    Boolean            @default(false)
+  isPast         Boolean            @default(false)
+  source         EventSource?       @relation(fields: [sourceId], references: [id])
+  sourceId       String?
+  comments       Comment[]          @relation("CommentEvent")
+  reactions      Reaction[]         @relation("ReactionEvent")
+  reports        Report[]           @relation("ReportEvent")
+  interestedUsers InterestedEvent[]
+  featureSlots   FeaturePlacement[] @relation("FeaturePlacementEvent")
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model EventSubmission {
+  id             String             @id @default(uuid())
+  submittedBy    User?              @relation(fields: [submittedById], references: [id])
+  submittedById  String?
+  title          String
+  location       String
+  startsAt       DateTime?
+  endsAt         DateTime?
+  description    String
+  category       String?
+  heroImageUrl   String?
+  organizer      String?
+  sourceUrl      String?
+  status         ModerationStatus   @default(PENDING)
+  reviewNotes    String?
+  approvedEvent  Event?             @relation(fields: [approvedEventId], references: [id])
+  approvedEventId String?           @unique
+  reviews        SubmissionReview[] @relation("EventSubmissionReviews")
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model Submission {
+  id              String             @id @default(uuid())
+  submittedBy     User?              @relation(fields: [submittedById], references: [id])
+  submittedById   String?
+  type            SubmissionType
+  title           String
+  body            String?
+  contactEmail    String?
+  status          ModerationStatus   @default(PENDING)
+  media           SubmissionMedia[]
+  reviews         SubmissionReview[] @relation("SubmissionReviews")
+  reports         Report[]           @relation("ReportSubmission")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model SubmissionMedia {
+  id              String    @id @default(uuid())
+  submission      Submission @relation(fields: [submissionId], references: [id])
+  submissionId    String
+  mediaType       MediaType
+  url             String
+  posterUrl       String?
+  durationSeconds Int?
+  createdAt       DateTime  @default(now())
+}
+
+model SubmissionReview {
+  id                String           @id @default(uuid())
+  submission        Submission?      @relation("SubmissionReviews", fields: [submissionId], references: [id])
+  submissionId      String?
+  eventSubmission   EventSubmission? @relation("EventSubmissionReviews", fields: [eventSubmissionId], references: [id])
+  eventSubmissionId String?
+  reviewer          User?            @relation("SubmissionReviewReviewer", fields: [reviewerId], references: [id])
+  reviewerId        String?
+  status            ModerationStatus
+  notes             String?
+  createdAt         DateTime         @default(now())
+}
+
+model SponsorLead {
+  id           String           @id @default(uuid())
+  companyName  String
+  contactName  String?
+  email        String?
+  details      String?
+  status       ModerationStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model SiteAnnouncement {
+  id           String           @id @default(uuid())
+  author       User?            @relation("SiteAnnouncementAuthor", fields: [authorId], references: [id])
+  authorId     String?
+  title        String
+  body         String
+  tone         AnnouncementTone @default(INFO)
+  isActive     Boolean          @default(true)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model SiteSetting {
+  id         String   @id @default(uuid())
+  key        String   @unique
+  value      Json
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+}
+
+model MaintenanceState {
+  id            String   @id @default(uuid())
+  isEnabled     Boolean  @default(false)
+  message       String?
+  updatedBy     User?    @relation("MaintenanceUpdatedBy", fields: [updatedById], references: [id])
+  updatedById   String?
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+}
+
+model AdminRole {
+  id            String                @id @default(uuid())
+  name          String                @unique
+  description   String?
+  assignments   AdminRoleAssignment[]
+  permissions   AdminRolePermission[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+}
+
+model AdminPermission {
+  id            String                @id @default(uuid())
+  key           String                @unique
+  description   String?
+  roles         AdminRolePermission[]
+  createdAt     DateTime              @default(now())
+}
+
+model AdminRolePermission {
+  id            String           @id @default(uuid())
+  role          AdminRole        @relation(fields: [roleId], references: [id])
+  roleId        String
+  permission    AdminPermission  @relation(fields: [permissionId], references: [id])
+  permissionId  String
+  createdAt     DateTime         @default(now())
+
+  @@unique([roleId, permissionId])
+}
+
+model AdminRoleAssignment {
+  id         String    @id @default(uuid())
+  user       User      @relation(fields: [userId], references: [id])
+  userId     String
+  role       AdminRole @relation(fields: [roleId], references: [id])
+  roleId     String
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, roleId])
+}
+
+model ModerationAction {
+  id          String   @id @default(uuid())
+  actor       User?    @relation("ModerationActionActor", fields: [actorId], references: [id])
+  actorId     String?
+  targetType  String
+  targetId    String
+  action      String
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+}
+
+model UserBan {
+  id          String   @id @default(uuid())
+  user        User     @relation("UserBanTarget", fields: [userId], references: [id])
+  userId      String
+  bannedBy    User?    @relation("UserBanIssuedBy", fields: [bannedById], references: [id])
+  bannedById  String?
+  reason      String
+  startsAt    DateTime @default(now())
+  endsAt      DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Report {
+  id             String           @id @default(uuid())
+  reporter       User?            @relation("ReportCreatedBy", fields: [reporterId], references: [id])
+  reporterId     String?
+  reviewedBy     User?            @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById   String?
+  targetType     ReportTargetType
+  reason         String
+  details        String?
+  status         ReportStatus      @default(OPEN)
+  comment        Comment?          @relation("ReportComment", fields: [commentId], references: [id])
+  commentId      String?
+  profile        Profile?          @relation("ReportProfile", fields: [profileId], references: [id])
+  profileId      String?
+  post           OfficialPost?     @relation("ReportPost", fields: [postId], references: [id])
+  postId         String?
+  event          Event?            @relation("ReportEvent", fields: [eventId], references: [id])
+  eventId        String?
+  submission     Submission?       @relation("ReportSubmission", fields: [submissionId], references: [id])
+  submissionId   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actor       User?    @relation("AuditLogActor", fields: [actorId], references: [id])
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  payload     Json?
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  title       String
+  body        String
+  type        String
+  data        Json?
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model InterestedEvent {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  event      Event    @relation(fields: [eventId], references: [id])
+  eventId    String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, eventId])
+}
+
+model ManagedPage {
+  id          String    @id @default(uuid())
+  slug        String    @unique
+  title       String
+  body        String
+  updatedBy   User?     @relation("ManagedPageUpdatedBy", fields: [updatedById], references: [id])
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model FeaturePlacement {
+  id          String        @id @default(uuid())
+  slot        String
+  position    Int           @default(0)
+  isActive    Boolean       @default(true)
+  event       Event?        @relation("FeaturePlacementEvent", fields: [eventId], references: [id])
+  eventId     String?
+  post        OfficialPost? @relation("FeaturePlacementPost", fields: [postId], references: [id])
+  postId      String?
+  profile     Profile?      @relation("FeaturePlacementProfile", fields: [profileId], references: [id])
+  profileId   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}

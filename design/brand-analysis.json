@@ -1,0 +1,131 @@
+{
+  "brand_name": "STATIK",
+  "brand_archetype": ["Ruler", "Outlaw", "Creator"],
+  "visual_tone": [
+    "aggressive",
+    "cinematic",
+    "machined",
+    "premium",
+    "motorsport-rooted",
+    "blackout",
+    "high-contrast",
+    "sharp",
+    "confident"
+  ],
+  "typography_direction": {
+    "headline": "ultra-bold extended grotesk or engineered display with wide stance, tight tracking, sharp terminals, and uppercase dominance",
+    "body": "clean modern sans with strong legibility, medium optical size, compact paragraphs, and dense but breathable rhythm",
+    "ui": "uppercase micro-labels with disciplined tracking for controls, modules, and taxonomy"
+  },
+  "shape_language": {
+    "primary": ["blades", "spear points", "trapezoids", "hard chamfers", "cut corners"],
+    "surface_geometry": "rectilinear bases with selective angular cuts rather than soft cards",
+    "radius_strategy": "large exterior radii only where they add premium mass; interior controls stay tighter and more technical"
+  },
+  "logo_geometry_notes": [
+    "Wordmarks rely on asymmetrical spikes, inward blade cuts, and compressed counters.",
+    "The emblem/crest form suggests a spear, trident, or weaponized motorsport insignia.",
+    "The logo reads strongest in monochrome with aggressive negative space.",
+    "Do not round the logo, soften terminals, or place it inside playful containers.",
+    "Maintain generous clearspace equal to at least the height of the A crossbar around the lockup."
+  ],
+  "iconography_rules": [
+    "Use mono-line or solid icons with hard edges and restrained detail.",
+    "Avoid bubbly outline icons, emoji-like forms, or cartoon pictograms.",
+    "Prefer arrows, chevrons, gauges, grid marks, map pins, bolts, shields, and camera/media motifs with geometric precision.",
+    "Icons should feel machined, not friendly-tech."
+  ],
+  "color_palette": {
+    "base": {
+      "void": "#050505",
+      "abyss": "#0A0A0A",
+      "obsidian": "#111111",
+      "graphite": "#17181A",
+      "gunmetal": "#23262A"
+    },
+    "text": {
+      "white": "#F5F7FA",
+      "bone": "#E7EAEE",
+      "smoke": "#B8BEC7",
+      "mute": "#7C838D"
+    },
+    "accents": {
+      "steel": "#9AA3AE",
+      "ember": "#C74D27",
+      "signal": "#E7E247"
+    }
+  },
+  "contrast_rules": {
+    "default_mode": "dark-only dominance",
+    "text_on_background": "primary copy should rarely fall below AA contrast; large hero text should be near-white on near-black",
+    "accent_usage": "accents are surgical, not ambient; use on CTAs, live states, selected tabs, and data highlights only",
+    "surface_separation": "differentiate surfaces with texture, shadow, border sheen, and opacity before adding color"
+  },
+  "spacing_rules": {
+    "macro": "oversized vertical rhythm for hero and editorial sections",
+    "module": "20-32px internal spacing on cards, 12-16px on compact controls",
+    "density": "dense information is acceptable only with clear hierarchy, labels, and sectional segmentation",
+    "alignment": "favor long baseline-aligned blocks and strong grid rails"
+  },
+  "motion_rules": {
+    "feel": "heavy, expensive, controlled",
+    "timing": "180-280ms for UI actions, 450-700ms for hero and page moments",
+    "easing": "use smooth deceleration and spring only where physicality helps",
+    "patterns": [
+      "masked reveals",
+      "parallax drift kept subtle",
+      "card lift with shadow bloom",
+      "slide/fade tab transitions",
+      "media zoom with depth"
+    ],
+    "avoid": ["bouncy startup motion", "constant floating", "neon glitch", "over-rotation"]
+  },
+  "image_treatment_rules": {
+    "subject_matter": ["cars", "garages", "track surfaces", "night streets", "workshop detail", "metal textures", "human presence used sparingly and purposefully"],
+    "grading": "cool blacks, deep contrast, restrained highlights, subtle smoke or metallic warmth where needed",
+    "cropping": "tight, cinematic, confident; emphasize body lines, stance, wheels, light streaks, and environment mood",
+    "overlays": "use dark gradients and slight grain before introducing accent color overlays"
+  },
+  "ui_surface_rules": {
+    "cards": "premium dark panels with low-sheen borders, tinted glass or smoked metal feel",
+    "navigation": "navigation bars should feel like control surfaces or instrument rails, not SaaS nav chrome",
+    "data_panels": "analytics and admin surfaces can be cleaner but must retain brand tension through typography, contrast, and sharp segmentation",
+    "buttons": "primary buttons should feel assertive and dense; secondary buttons should feel armored rather than ghosted"
+  },
+  "do_not_do_list": [
+    "Do not use pastel gradients.",
+    "Do not use generic startup illustrations.",
+    "Do not fill pages with white backgrounds.",
+    "Do not use pillowy SaaS cards everywhere.",
+    "Do not soften the logo geometry.",
+    "Do not overuse neon or gamer RGB effects.",
+    "Do not mix too many accent colors.",
+    "Do not make public pages resemble a productivity dashboard."
+  ],
+  "recommended_logo_placements": {
+    "navbar": "horizontal wordmark on dark field with generous breathing room",
+    "hero": "crest or wordmark used as low-opacity monument or top-left authority stamp",
+    "profile_pages": "small lockup near profile identity, QR module, and share cards",
+    "admin": "simplified monochrome wordmark with cleaner utility spacing",
+    "favicon_app_icon": "use spear/trident crest only"
+  },
+  "homepage_art_direction": {
+    "hero": "STATIK World first, commerce second; large cinematic imagery, event urgency, profile identity, and editorial motion",
+    "sections": ["featured update", "event discovery", "community/profile spotlight", "partners", "shop capsule"],
+    "texture": "smoke, machined metal, asphalt, overhead fluorescent spill, reflective paint, grain"
+  },
+  "mobile_art_direction": {
+    "behavior": "stack high-impact modules with sticky actions and clear segmented rails",
+    "surfaces": "thick black cards, readable overlays, strong touch targets, compressed but premium typography",
+    "priority": ["events", "updates", "profiles", "submit", "shop"]
+  },
+  "admin_ui_art_direction": {
+    "tone": "internal operations center, cleaner than public site but still unmistakably STATIK",
+    "layout": "dark command-center modules, high-density tables, strong filters, audit visibility",
+    "visual_rules": [
+      "neutral graphite base with hard white contrast",
+      "color only for status semantics",
+      "large overview metrics with crisp segmentation"
+    ]
+  }
+}

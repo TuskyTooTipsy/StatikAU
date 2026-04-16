@@ -1,0 +1,137 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Product {
+  id         String         @id @default(uuid())
+  title      String
+  slug       String         @unique
+  shortDesc  String
+  description String
+  price      Float
+  compareAt  Float?
+  variants   ProductVariant[]
+  images     ProductImage[]
+  collection Collection?    @relation(fields: [collectionId], references: [id])
+  collectionId String?
+  tags       String[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+model ProductVariant {
+  id        String  @id @default(uuid())
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  name      String
+  price     Float
+  sku       String
+  options   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  url       String
+  alt       String
+  position  Int
+}
+
+model Collection {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  products  Product[]
+}
+
+model Order {
+  id          String            @id @default(uuid())
+  customer    Customer          @relation(fields: [customerId], references: [id])
+  customerId  String
+  items       OrderItem[]
+  total       Float
+  status      String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  payment     PaymentRecord?
+  fulfillment FulfillmentRecord?
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  price     Float
+}
+
+model Customer {
+  id       String   @id @default(uuid())
+  email    String   @unique
+  name     String?
+  address  Address?
+  orders   Order[]
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  customer  Customer @relation(fields: [customerId], references: [id])
+  customerId String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  postal    String
+  country   String
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model ContactSubmission {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model FulfillmentRecord {
+  id        String   @id @default(uuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  printfulId String?
+  status    String
+  data      Json?
+}
+
+model PaymentRecord {
+  id         String   @id @default(uuid())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    String
+  stripeId   String?
+  amount     Float
+  currency   String
+  status     String
+  createdAt  DateTime @default(now())
+}
+
+model PrintfulMapping {
+  id        String   @id @default(uuid())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  printfulId String
+}
