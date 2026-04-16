@@ -11,7 +11,8 @@ import type {
   PublicPlatformPayload,
 } from '../types/network';
 
-const API_BASE = `${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api`;
+const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '';
 const TOKEN_KEY = 'statik_session_token';
 
 export function getStoredToken() {
@@ -30,6 +31,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type') && options.body) headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  if (!API_BASE) {
+    throw new Error('Frontend API is not configured. Set VITE_API_BASE_URL in Netlify and redeploy the site.');
+  }
 
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!response.ok) {
