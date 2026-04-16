@@ -10,6 +10,9 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().min(8).optional(),
+  ADMIN_DISPLAY_NAME: z.string().min(2).max(40).optional(),
   NODE_ENV: z.string().default('development'),
 });
 

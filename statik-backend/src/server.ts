@@ -18,6 +18,7 @@ import searchRouter from './routes/search';
 import submissionsRouter from './routes/submissions';
 import adminRouter from './routes/admin';
 import { env, getAllowedOrigins } from './lib/env';
+import { ensureBootstrapAdmin } from './lib/bootstrap';
 
 export function createApp() {
   const app = express();
@@ -91,6 +92,7 @@ export function createApp() {
 }
 
 export async function startServer() {
+  ensureBootstrapAdmin();
   const app = createApp();
   const port = parseInt(env.PORT, 10);
 

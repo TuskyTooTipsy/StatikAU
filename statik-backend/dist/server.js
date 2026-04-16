@@ -25,6 +25,7 @@ const search_1 = __importDefault(require("./routes/search"));
 const submissions_1 = __importDefault(require("./routes/submissions"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const env_1 = require("./lib/env");
+const bootstrap_1 = require("./lib/bootstrap");
 function createApp() {
     const app = (0, express_1.default)();
     app.use((0, helmet_1.default)());
@@ -85,6 +86,7 @@ function createApp() {
     return app;
 }
 async function startServer() {
+    (0, bootstrap_1.ensureBootstrapAdmin)();
     const app = createApp();
     const port = parseInt(env_1.env.PORT, 10);
     app.listen(port, '0.0.0.0', () => {

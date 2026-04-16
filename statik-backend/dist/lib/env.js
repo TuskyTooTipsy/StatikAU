@@ -15,6 +15,9 @@ exports.envSchema = zod_1.z.object({
     DATABASE_URL: zod_1.z.string().optional(),
     STRIPE_SECRET_KEY: zod_1.z.string().optional(),
     STRIPE_WEBHOOK_SECRET: zod_1.z.string().optional(),
+    ADMIN_EMAIL: zod_1.z.string().email().optional(),
+    ADMIN_PASSWORD: zod_1.z.string().min(8).optional(),
+    ADMIN_DISPLAY_NAME: zod_1.z.string().min(2).max(40).optional(),
     NODE_ENV: zod_1.z.string().default('development'),
 });
 exports.env = exports.envSchema.parse(process.env);
