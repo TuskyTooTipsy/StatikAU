@@ -1,16 +1,43 @@
 import fs from 'fs';
 import path from 'path';
-import express, { Router } from 'express';
+import express, { Request, Router } from 'express';
 import { z } from 'zod';
 import { createHmac } from 'crypto';
 import { requireAuth } from '../lib/auth';
 import { env, getMaxUploadBytes, getPublicServerUrl } from '../lib/env';
 import { UPLOADS_DIR, createId, getMedia, logAudit, mutateDb, nowIso, readDb, removeMediaFile } from '../lib/store';
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MIME_BY_EXT: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.m4v': 'video/mp4',
+};
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 const ALL_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
 const SIGNING_SECRET = env.ADMIN_PASSWORD || 'statik-local-upload-secret';
+
+function inferMimeType(fileName: string, incomingMimeType: string) {
+  if (incomingMimeType && incomingMimeType !== 'application/octet-stream') return incomingMimeType;
+  const ext = path.extname(fileName || '').toLowerCase();
+  return MIME_BY_EXT[ext] || incomingMimeType || 'application/octet-stream';
+}
+
+function resolveServerOrigin(req?: Request) {
+  if (env.PUBLIC_SERVER_URL) return getPublicServerUrl();
+  const host = req?.get('host');
+  const proto = req?.get('x-forwarded-proto') || req?.protocol || 'http';
+  return host ? `${proto}://${host}` : getPublicServerUrl();
+}
 
 function signUpload(uploadId: string, assetId: string, expiresAt: string) {
   return createHmac('sha256', SIGNING_SECRET).update(`${uploadId}:${assetId}:${expiresAt}`).digest('hex');
@@ -63,9 +90,10 @@ export default function mediaRouter() {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid upload payload' });
     const viewer = (req as any).viewer;
+    const mimeType = inferMimeType(parsed.data.fileName, parsed.data.mimeType);
 
-    if (!ALL_TYPES.includes(parsed.data.mimeType)) {
-      return res.status(400).json({ error: 'Unsupported file type' });
+    if (!ALL_TYPES.includes(mimeType)) {
+      return res.status(400).json({ error: `Unsupported file type: ${mimeType}` });
     }
     if (!ensureUploadPermission(viewer, parsed.data.ownerType, parsed.data.ownerId)) {
       return res.status(403).json({ error: 'Not allowed to upload to this target' });
@@ -80,9 +108,9 @@ export default function mediaRouter() {
         ownerUserId: viewer.user.id,
         ownerType: parsed.data.ownerType,
         ownerId: parsed.data.ownerId,
-        kind: parsed.data.mimeType.startsWith('video/') ? 'video' : 'image',
+        kind: mimeType.startsWith('video/') ? 'video' : 'image',
         fileName: parsed.data.fileName,
-        mimeType: parsed.data.mimeType,
+        mimeType,
         size: parsed.data.size,
         storageKey: '',
         url: '',
@@ -97,7 +125,7 @@ export default function mediaRouter() {
         ownerId: parsed.data.ownerId,
         assetId,
         fileName: parsed.data.fileName,
-        mimeType: parsed.data.mimeType,
+        mimeType,
         size: parsed.data.size,
         status: 'pending',
         createdAt: nowIso(),
@@ -107,12 +135,14 @@ export default function mediaRouter() {
       return { uploadId, assetId, expiresAt };
     });
 
+    const origin = resolveServerOrigin(req);
     const signature = signUpload(created.uploadId, created.assetId, created.expiresAt);
     return res.status(201).json({
       assetId: created.assetId,
       uploadId: created.uploadId,
-      uploadUrl: `${getPublicServerUrl()}/api/media/uploads/${created.uploadId}?asset=${created.assetId}&expires=${encodeURIComponent(created.expiresAt)}&sig=${signature}`,
+      uploadUrl: `${origin}/api/media/uploads/${created.uploadId}?asset=${created.assetId}&expires=${encodeURIComponent(created.expiresAt)}&sig=${signature}`,
       maxBytes: getMaxUploadBytes(),
+      acceptedMimeTypes: ALL_TYPES,
     });
   });
 
@@ -125,6 +155,7 @@ export default function mediaRouter() {
     if (sig !== signUpload(uploadId, assetId, expires)) return res.status(403).json({ error: 'Upload signature mismatch' });
     if (new Date(expires).getTime() < Date.now()) return res.status(410).json({ error: 'Upload URL expired' });
     if (!Buffer.isBuffer(req.body)) return res.status(400).json({ error: 'Binary file body required' });
+    if (req.body.length === 0) return res.status(400).json({ error: 'Uploaded file was empty' });
 
     try {
       mutateDb((db) => {
@@ -138,7 +169,7 @@ export default function mediaRouter() {
         fs.writeFileSync(path.join(UPLOADS_DIR, storageKey), req.body);
         upload.status = 'uploaded';
         asset.storageKey = storageKey;
-        asset.url = `${getPublicServerUrl()}/uploads/${storageKey}`;
+        asset.url = `${resolveServerOrigin(req)}/uploads/${storageKey}`;
         asset.status = 'uploaded';
         asset.updatedAt = nowIso();
       });
@@ -146,7 +177,8 @@ export default function mediaRouter() {
       return res.status(400).json({ error: error.message || 'Could not save upload' });
     }
 
-    return res.json({ success: true, assetId, url: `${getPublicServerUrl()}/uploads/${path.basename(readDb().mediaAssets.find((item) => item.id === assetId)?.storageKey || '')}` });
+    const asset = readDb().mediaAssets.find((item) => item.id === assetId);
+    return res.json({ success: true, assetId, url: asset?.url || '' });
   });
 
   router.delete('/assets/:assetId', requireAuth, async (req, res) => {
@@ -172,6 +204,9 @@ export default function mediaRouter() {
       });
       db.communityPosts.forEach((post) => {
         post.mediaIds = post.mediaIds.filter((id) => id !== target.id);
+      });
+      db.events.forEach((event) => {
+        event.mediaIds = (event.mediaIds || []).filter((id) => id !== target.id);
       });
       logAudit(db, viewer.user.id, 'media_deleted', 'media', target.id);
     });

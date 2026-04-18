@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 
 export type Role = 'user' | 'admin';
-export type EventStatus = 'pending' | 'approved' | 'rejected';
+export type EventStatus = 'pending' | 'approved' | 'rejected' | 'revision_requested';
 export type RSVPStatus = 'interested' | 'attending' | 'maybe';
 export type CommunityVisibility = 'public' | 'private';
 export type MessageType = 'text' | 'event' | 'location';
@@ -12,6 +12,12 @@ export type UploadStatus = 'pending' | 'uploaded' | 'failed' | 'deleted';
 export type VehicleType = 'car' | 'bike' | 'truck' | 'other';
 export type ProfileAnalyticsVisibility = 'public' | 'private';
 export type LinkTargetType = 'profile' | 'vehicle' | 'community' | 'event';
+export type EventSourceType = 'user_submission' | 'imported' | 'statik_hosted' | 'partner' | 'manual_admin';
+export type EventPricingType = 'free' | 'ticketed' | 'invite_only' | 'other';
+export type EventVenueType = 'raceway' | 'street' | 'workshop' | 'showground' | 'dealer' | 'business' | 'indoor' | 'outdoor' | 'mixed' | 'other';
+export type EventEntryType = 'spectator' | 'driver' | 'rider' | 'mixed' | 'other';
+export type ImportItemStatus = 'pending' | 'approved' | 'rejected' | 'archived';
+export type ImportRunStatus = 'queued' | 'success' | 'partial' | 'failed';
 export type AnalyticsEventType =
   | 'profile_view'
   | 'garage_view'
@@ -28,6 +34,12 @@ export interface SiteState {
   maintenanceMode: boolean;
   registrationOpen: boolean;
   brandTagline: string;
+  eventVisibilityMode?: 'open' | 'curated';
+  mapProvider?: 'mapbox' | 'manual';
+  importsEnabled?: boolean;
+  featureWindowDaysDefault?: number;
+  homepageHeroMode?: 'events' | 'hybrid';
+  messageModerationEnabled?: boolean;
 }
 
 export interface UserRecord {
@@ -38,6 +50,10 @@ export interface UserRecord {
   role: Role;
   profileId: string;
   createdAt: string;
+  isBanned?: boolean;
+  suspensionEndsAt?: string | null;
+  moderationNote?: string;
+  featureEndsAt?: string | null;
 }
 
 export interface SessionRecord {
@@ -45,6 +61,9 @@ export interface SessionRecord {
   userId: string;
   tokenHash: string;
   createdAt: string;
+  ip?: string;
+  userAgent?: string;
+  lastSeenAt?: string;
 }
 
 export interface ProfileRecord {
@@ -69,6 +88,17 @@ export interface ProfileRecord {
   createdAt: string;
 }
 
+export interface EventLocationRecord {
+  label: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+  suburb?: string;
+  region?: string;
+  country?: string;
+}
+
 export interface EventRecord {
   id: string;
   slug: string;
@@ -84,6 +114,30 @@ export interface EventRecord {
   createdByUserId: string;
   hostCommunityId?: string;
   createdAt: string;
+  updatedAt?: string;
+  sourceType?: EventSourceType;
+  sourceName?: string;
+  sourceUrl?: string;
+  locationDetails?: EventLocationRecord | null;
+  tags?: string[];
+  mediaIds?: string[];
+  sponsored?: boolean;
+  sponsorName?: string;
+  venueType?: EventVenueType;
+  entryType?: EventEntryType;
+  pricingType?: EventPricingType;
+  vehicleFocus?: string[];
+  visibilityLabel?: string;
+  spectatorFriendly?: boolean;
+  familyFriendly?: boolean;
+  recurring?: boolean;
+  indoorOutdoor?: 'indoor' | 'outdoor' | 'mixed' | 'unknown';
+  submittedByEmail?: string;
+  submittedByName?: string;
+  hostLinks?: string[];
+  adminNotes?: string[];
+  statusHistory?: Array<{ status: EventStatus; at: string; byUserId?: string | null; note?: string }>;
+  importItemId?: string;
 }
 
 export interface EventResponseRecord {
@@ -211,6 +265,15 @@ export interface GarageVehicleRecord {
   featured: boolean;
   createdAt: string;
   updatedAt: string;
+  generation?: string;
+  specialEdition?: string;
+  bodyStyle?: string;
+  drivetrain?: string;
+  engineFamily?: string;
+  transmission?: string;
+  ownershipStatus?: string;
+  purposeTags?: string[];
+  setupTags?: string[];
 }
 
 export interface ProfilePostRecord {
@@ -290,6 +353,59 @@ export interface AuditLogRecord {
   targetId: string;
   createdAt: string;
   detail?: string;
+  undoAction?: string;
+}
+
+export interface EventImportSourceRecord {
+  id: string;
+  key: string;
+  name: string;
+  baseUrl: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastRunAt?: string;
+  lastRunStatus?: ImportRunStatus;
+  lastRunMessage?: string;
+}
+
+export interface EventImportRunRecord {
+  id: string;
+  sourceId: string;
+  sourceKey: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: ImportRunStatus;
+  importedCount: number;
+  duplicateCount: number;
+  errorCount: number;
+  note?: string;
+}
+
+export interface EventImportItemRecord {
+  id: string;
+  sourceId: string;
+  runId: string;
+  sourceKey: string;
+  sourceName: string;
+  sourceUrl: string;
+  title: string;
+  location: string;
+  date: string;
+  time: string;
+  category: string;
+  description: string;
+  imageUrl?: string;
+  organizer?: string;
+  hostHint?: string;
+  rawText?: string;
+  normalizedTags: string[];
+  status: ImportItemStatus;
+  createdAt: string;
+  updatedAt: string;
+  linkedEventId?: string;
+  duplicateOfEventId?: string;
+  adminNote?: string;
 }
 
 export interface RuntimeDb {
@@ -313,6 +429,9 @@ export interface RuntimeDb {
   analyticsEvents: AnalyticsEventRecord[];
   reports: ReportRecord[];
   auditLogs: AuditLogRecord[];
+  eventImportSources: EventImportSourceRecord[];
+  eventImportRuns: EventImportRunRecord[];
+  eventImportItems: EventImportItemRecord[];
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -320,12 +439,19 @@ const DB_PATH = path.join(DATA_DIR, 'runtime-db.json');
 export const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
 function defaultDb(): RuntimeDb {
+  const now = nowIso();
   return {
     site: {
       shopLocked: true,
       maintenanceMode: false,
       registrationOpen: true,
       brandTagline: 'Private scene network for people who actually show up.',
+      eventVisibilityMode: 'curated',
+      mapProvider: 'mapbox',
+      importsEnabled: true,
+      featureWindowDaysDefault: 3,
+      homepageHeroMode: 'events',
+      messageModerationEnabled: true,
     },
     users: [],
     sessions: [],
@@ -346,6 +472,19 @@ function defaultDb(): RuntimeDb {
     analyticsEvents: [],
     reports: [],
     auditLogs: [],
+    eventImportSources: [
+      {
+        id: 'source_qldraceway',
+        key: 'qldraceway',
+        name: 'Queensland Raceway',
+        baseUrl: 'https://www.qldraceways.com.au',
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    eventImportRuns: [],
+    eventImportItems: [],
   };
 }
 
@@ -408,12 +547,58 @@ function normalizeVehicle(vehicle: any): GarageVehicleRecord {
     featured: Boolean(vehicle.featured),
     createdAt: now,
     updatedAt: vehicle.updatedAt || now,
+    generation: vehicle.generation || '',
+    specialEdition: vehicle.specialEdition || '',
+    bodyStyle: vehicle.bodyStyle || '',
+    drivetrain: vehicle.drivetrain || '',
+    engineFamily: vehicle.engineFamily || '',
+    transmission: vehicle.transmission || '',
+    ownershipStatus: vehicle.ownershipStatus || '',
+    purposeTags: Array.isArray(vehicle.purposeTags) ? vehicle.purposeTags : [],
+    setupTags: Array.isArray(vehicle.setupTags) ? vehicle.setupTags : [],
+  };
+}
+
+function normalizeEvent(event: any): EventRecord {
+  const createdAt = event.createdAt || nowIso();
+  return {
+    ...event,
+    featured: Boolean(event.featured),
+    approvalStatus: ['pending', 'approved', 'rejected', 'revision_requested'].includes(event.approvalStatus) ? event.approvalStatus : 'pending',
+    sourceType: event.sourceType || 'user_submission',
+    sourceName: event.sourceName || '',
+    sourceUrl: event.sourceUrl || '',
+    locationDetails: event.locationDetails && typeof event.locationDetails === 'object' ? event.locationDetails : null,
+    tags: Array.isArray(event.tags) ? event.tags : [],
+    mediaIds: Array.isArray(event.mediaIds) ? event.mediaIds : [],
+    sponsored: Boolean(event.sponsored),
+    sponsorName: event.sponsorName || '',
+    venueType: event.venueType || 'other',
+    entryType: event.entryType || 'mixed',
+    pricingType: event.pricingType || 'other',
+    vehicleFocus: Array.isArray(event.vehicleFocus) ? event.vehicleFocus : [],
+    visibilityLabel: event.visibilityLabel || '',
+    spectatorFriendly: typeof event.spectatorFriendly === 'boolean' ? event.spectatorFriendly : undefined,
+    familyFriendly: typeof event.familyFriendly === 'boolean' ? event.familyFriendly : undefined,
+    recurring: typeof event.recurring === 'boolean' ? event.recurring : false,
+    indoorOutdoor: event.indoorOutdoor || 'unknown',
+    submittedByEmail: event.submittedByEmail || '',
+    submittedByName: event.submittedByName || '',
+    hostLinks: Array.isArray(event.hostLinks) ? event.hostLinks : [],
+    adminNotes: Array.isArray(event.adminNotes) ? event.adminNotes : [],
+    statusHistory: Array.isArray(event.statusHistory) ? event.statusHistory : [],
+    createdAt,
+    updatedAt: event.updatedAt || createdAt,
   };
 }
 
 function normalizeDb(raw: Partial<RuntimeDb>): RuntimeDb {
   const db = { ...defaultDb(), ...raw } as RuntimeDb;
+  db.site = { ...defaultDb().site, ...(db.site || {}) };
+  db.users = (db.users || []).map((item: any) => ({ ...item, isBanned: Boolean(item.isBanned), suspensionEndsAt: item.suspensionEndsAt || null, moderationNote: item.moderationNote || '', featureEndsAt: item.featureEndsAt || null }));
+  db.sessions = (db.sessions || []).map((item: any) => ({ ...item, lastSeenAt: item.lastSeenAt || item.createdAt || nowIso(), ip: item.ip || '', userAgent: item.userAgent || '' }));
   db.profiles = (db.profiles || []).map(normalizeProfile);
+  db.events = (db.events || []).map(normalizeEvent);
   db.communities = (db.communities || []).map(normalizeCommunity);
   db.garageVehicles = (db.garageVehicles || []).map(normalizeVehicle);
   db.communityJoinRequests = (db.communityJoinRequests || []).map((item: any) => ({ ...item, answers: Array.isArray(item.answers) ? item.answers : [] }));
@@ -426,6 +611,9 @@ function normalizeDb(raw: Partial<RuntimeDb>): RuntimeDb {
   db.pendingUploads = (db.pendingUploads || []).map((item: any) => ({ ...item, status: item.status || 'pending' }));
   db.reports = db.reports || [];
   db.auditLogs = db.auditLogs || [];
+  db.eventImportSources = (db.eventImportSources || defaultDb().eventImportSources).map((item: any) => ({ ...item, enabled: item.enabled !== false, createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+  db.eventImportRuns = (db.eventImportRuns || []).map((item: any) => ({ ...item, importedCount: Number(item.importedCount || 0), duplicateCount: Number(item.duplicateCount || 0), errorCount: Number(item.errorCount || 0) }));
+  db.eventImportItems = (db.eventImportItems || []).map((item: any) => ({ ...item, normalizedTags: Array.isArray(item.normalizedTags) ? item.normalizedTags : [], status: item.status || 'pending', createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
   return db;
 }
 
@@ -521,7 +709,7 @@ export function canManageCommunity(community: CommunityRecord, userId: string) {
   return community.ownerUserId === userId || community.adminUserIds.includes(userId);
 }
 
-export function logAudit(db: RuntimeDb, actorUserId: string | null, action: string, targetType: string, targetId: string, detail?: string) {
+export function logAudit(db: RuntimeDb, actorUserId: string | null, action: string, targetType: string, targetId: string, detail?: string, undoAction?: string) {
   db.auditLogs.unshift({
     id: createId('audit'),
     actorUserId,
@@ -530,8 +718,9 @@ export function logAudit(db: RuntimeDb, actorUserId: string | null, action: stri
     targetId,
     createdAt: nowIso(),
     detail,
+    undoAction,
   });
-  db.auditLogs = db.auditLogs.slice(0, 300);
+  db.auditLogs = db.auditLogs.slice(0, 1000);
 }
 
 export function getMedia(db: RuntimeDb, mediaId?: string | null) {

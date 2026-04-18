@@ -87,7 +87,7 @@ export default function authRouter() {
       return res.status(400).json({ error: error.message || 'Could not create account' });
     }
 
-    const token = createSession(result.userId);
+    const token = createSession(result.userId, req);
     const db = readDb();
     return res.status(201).json({
       token,
@@ -110,7 +110,10 @@ export default function authRouter() {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = createSession(user.id);
+    if (user.isBanned) return res.status(403).json({ error: 'Account banned' });
+    if (user.suspensionEndsAt && new Date(user.suspensionEndsAt).getTime() > Date.now()) return res.status(403).json({ error: `Account suspended until ${new Date(user.suspensionEndsAt).toLocaleString()}` });
+
+    const token = createSession(user.id, req);
     return res.json({ token, ...sanitizeAuthPayload(readDb(), user.id) });
   });
 

@@ -28,6 +28,7 @@ import { UPLOADS_DIR } from './lib/store';
 
 export function createApp() {
   const app = express();
+  app.set('trust proxy', true);
 
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(compression());
