@@ -7,6 +7,7 @@ import { networkApi } from '../api/network';
 const publicLinks = [
   { label: 'Home', href: '/' },
   { label: 'Events', href: '/events' },
+  { label: 'Submit', href: '/submit' },
 ];
 
 export default function Navbar() {

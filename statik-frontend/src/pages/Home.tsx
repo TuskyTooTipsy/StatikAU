@@ -1,144 +1,160 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import EmptyPanel from '../components/EmptyPanel';
-import AvatarBadge from '../components/AvatarBadge';
 import { networkApi } from '../api/network';
 import type { PublicPlatformPayload } from '../types/network';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 export default function Home() {
   const [data, setData] = useState<PublicPlatformPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  usePageMeta('Home', 'STATIK is evolving into a sharper automotive event platform with premium discovery, hosted events, profiles, garages, and communities.');
+
   useEffect(() => {
-    networkApi.getPublicPlatform().then(setData).catch((err) => setError(err.message));
+    void networkApi.getPublicPlatform()
+      .then((payload) => {
+        setData(payload);
+        setError(null);
+      })
+      .catch((err: any) => setError(err.message));
   }, []);
 
   return (
-    <div className="pb-16 pt-8 md:pt-10">
-      <section className="shell">
-        <div className="hero-cut overflow-hidden p-6 md:p-8 xl:p-12">
-          <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
-            <div className="space-y-7">
-              <div className="space-y-4">
-                <p className="eyebrow">STATIK / events-first / members behind the gate</p>
-                <h1 className="headline-xl max-w-5xl">Sharper, darker, and built to turn public attention into real scene membership.</h1>
-                <p className="body-muted max-w-3xl text-base md:text-lg">The homepage is the invitation. The real layer lives inside: friend connections, event intent, communities, and group chat for people who actually want to be part of the culture.</p>
+    <div className="pb-16">
+      <section className="shell pt-8">
+        <div className="page-hero-cut p-6 md:p-10">
+          <p className="eyebrow">Events-first automotive culture network</p>
+          <div className="grid gap-8 xl:grid-cols-[1.08fr_0.92fr] xl:items-end">
+            <div>
+              <h1 className="headline-lg mt-3">Track what is happening. Submit what matters. Build an identity that carries past the event itself.</h1>
+              <p className="body-muted mt-5 max-w-3xl text-base">STATIK is pushing harder toward hosted events, premium discovery, stronger group identity, richer garage dossiers, and cleaner moderation. The event layer now leads the experience instead of sitting off to the side.</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link to="/events" className="btn-primary h-12 px-5 text-[11px]">Explore events</Link>
+                <Link to="/submit" className="btn-secondary h-12 px-5 text-[11px]">Submit event</Link>
+                <Link to="/join" className="btn-secondary h-12 px-5 text-[11px]">Create account</Link>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <Link to="/join" className="btn-primary h-12 px-6 text-[11px]">Create account</Link>
-                <Link to="/events" className="btn-secondary h-12 px-6 text-[11px]">View events</Link>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="stat-block">
-                  <span className="stat-value">{data?.counts.members ?? '0'}</span>
-                  <span className="stat-label">live members</span>
-                </div>
-                <div className="stat-block">
-                  <span className="stat-value">{data?.counts.approvedEvents ?? '0'}</span>
-                  <span className="stat-label">approved events</span>
-                </div>
-                <div className="stat-block">
-                  <span className="stat-value">{data?.counts.publicCommunities ?? '0'}</span>
-                  <span className="stat-label">public communities</span>
-                </div>
-              </div>
-              {data?.foundingPhase ? <p className="text-xs uppercase tracking-[0.24em] text-silver/56">Founding phase is live. Early members shape the scene layer before it fills in.</p> : null}
             </div>
-            <div className="panel-cut h-full p-6 md:p-8">
-              <p className="eyebrow">Why signing up matters</p>
-              <div className="mt-6 grid gap-4 text-sm text-silver/72">
-                <div className="feature-row"><span className="feature-kicker">01</span><div><h3 className="feature-title">Event intent is social</h3><p>Interested, attending, and maybe are real states with real people attached.</p></div></div>
-                <div className="feature-row"><span className="feature-kicker">02</span><div><h3 className="feature-title">Communities have real chat</h3><p>Group chat supports normal messages, event attachments, and privacy-aware location sharing.</p></div></div>
-                <div className="feature-row"><span className="feature-kicker">03</span><div><h3 className="feature-title">Profiles now carry real build gravity</h3><p>Direct media posts, garages, short links, QR sharing, and profile traction make the account layer matter.</p></div></div>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="stat-block"><span className="stat-value">{data?.counts.approvedEvents ?? '—'}</span><span className="stat-label">approved events</span></div>
+              <div className="stat-block"><span className="stat-value">{data?.counts.sponsoredEvents ?? '—'}</span><span className="stat-label">sponsored events</span></div>
+              <div className="stat-block"><span className="stat-value">{data?.counts.publicCommunities ?? '—'}</span><span className="stat-label">public groups</span></div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="shell mt-16 grid gap-6 xl:grid-cols-[1fr_0.92fr]">
+      <section className="shell mt-10">
+        <div className="grid gap-4 xl:grid-cols-3">
+          {(data?.flagshipEvents || data?.featuredEvents || []).slice(0, 3).map((event) => (
+            <Link key={event.id} to={`/events/${event.slug}`} className="panel-cut overflow-hidden p-0">
+              {event.media?.[0] ? (
+                event.media[0].kind === 'video'
+                  ? <video src={event.media[0].url} className="h-56 w-full object-cover" muted playsInline />
+                  : <img src={event.media[0].url} alt={event.name} className="h-56 w-full object-cover" />
+              ) : (
+                <div className="h-56 w-full bg-[linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.02))]" />
+              )}
+              <div className="space-y-4 p-6">
+                <div className="flex flex-wrap gap-2">
+                  <span className="status-chip">{event.category}</span>
+                  {event.sponsored ? <span className="status-chip">sponsored</span> : null}
+                  {event.sourceType === 'statik_hosted' ? <span className="status-chip">STATIK hosted</span> : null}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-[-0.05em] text-bone">{event.name}</h2>
+                  <p className="mt-3 text-sm text-silver/66">{[event.location, event.date, event.time].filter(Boolean).join(' • ')}</p>
+                </div>
+                <p className="text-sm leading-7 text-silver/70">{event.description}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="shell mt-16">
         <div className="panel-cut p-6 md:p-8">
-          <div className="flex items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="eyebrow">Featured profiles</p>
-              <h2 className="headline-md mt-3">Curated accounts worth keeping an eye on.</h2>
+              <p className="eyebrow">Explore lanes</p>
+              <h2 className="headline-md mt-3">Browse the scene by event pattern instead of digging through thin calendar rows.</h2>
             </div>
-            <Link to="/join" className="text-[11px] uppercase tracking-[0.24em] text-silver/60">Members unlock more</Link>
+            <Link to="/events" className="btn-secondary h-11 px-4 text-[11px]">Open event index</Link>
           </div>
-          {data?.featuredProfiles?.length ? (
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {data.featuredProfiles.map((profile) => (
-                <Link to={`/profiles/${profile.slug}`} key={profile.id} className="profile-tile">
-                  <div className="flex items-center gap-3">
-                    <AvatarBadge name={profile.displayName} src={profile.avatarUrl} size="md" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-base font-semibold text-bone">{profile.displayName}</p>
-                        {profile.verified ? <span className="status-chip">verified</span> : null}
-                        {profile.promoted ? <span className="status-chip">promoted</span> : null}
-                      </div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-silver/50">{profile.primaryCar || 'No primary car added yet'}</p>
-                    </div>
-                  </div>
-                  <p className="mt-4 text-sm leading-7 text-silver/72">{profile.bio || 'This member has not added a bio yet.'}</p>
-                  <div className="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-[0.2em] text-silver/56">
-                    <span>{profile.stats?.friendCount ?? 0} friends</span>
-                    <span>{profile.stats?.communityCount ?? 0} communities</span>
-                    <span>{profile.stats?.eventAttendanceCount ?? 0} events</span>
-                  </div>
+          {data?.eventCategories?.length ? (
+            <div className="mt-6 flex flex-wrap gap-3">
+              {data.eventCategories.map((category) => (
+                <Link key={category.label} to={`/events?category=${encodeURIComponent(category.label)}`} className="panel-blade inline-flex min-w-[170px] items-center justify-between gap-3">
+                  <span className="text-sm text-bone">{category.label}</span>
+                  <span className="status-chip">{category.count}</span>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className="mt-6"><EmptyPanel eyebrow="No featured members" title="No featured profiles yet" body="Founding members can create accounts now. Admins can then promote standout builders, creators, or community anchors once they exist." /></div>
+            <div className="mt-6"><EmptyPanel eyebrow="Categories" title="No public categories yet" body="As approved events accumulate, the strongest discovery lanes will appear here automatically." /></div>
           )}
         </div>
+      </section>
 
-        <div className="panel-cut p-6 md:p-8">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="eyebrow">Featured events</p>
-              <h2 className="headline-md mt-3">Public previews. Social depth inside the account layer.</h2>
+      <section className="shell mt-16">
+        <div className="grid gap-6 xl:grid-cols-[1.04fr_0.96fr]">
+          <div className="panel-cut p-6 md:p-8">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="eyebrow">Upcoming</p>
+                <h2 className="headline-md mt-3">What is close enough to act on now.</h2>
+              </div>
+              <Link to="/events" className="btn-secondary h-11 px-4 text-[11px]">See all</Link>
             </div>
-            <Link to="/events" className="text-[11px] uppercase tracking-[0.24em] text-silver/60">All events</Link>
-          </div>
-          {data?.featuredEvents?.length ? (
             <div className="mt-6 grid gap-4">
-              {data.featuredEvents.map((event) => (
+              {(data?.upcomingEvents || []).length ? (data?.upcomingEvents || []).slice(0, 6).map((event) => (
                 <Link key={event.id} to={`/events/${event.slug}`} className="event-list-card">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.24em] text-silver/50">{event.category}</p>
                     <h3 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-bone">{event.name}</h3>
-                    <p className="mt-2 text-sm leading-7 text-silver/70">{event.location} • {event.date} • {event.time}</p>
-                    <p className="mt-3 text-sm leading-7 text-silver/72">{event.description}</p>
+                    <p className="mt-2 text-sm text-silver/70">{[event.location, event.date, event.time].filter(Boolean).join(' • ')}</p>
                   </div>
                   <div className="grid gap-2 text-xs uppercase tracking-[0.22em] text-silver/56 sm:text-right">
                     <span>{event.counts?.attending ?? 0} attending</span>
                     <span>{event.counts?.interested ?? 0} interested</span>
-                    <span>{event.counts?.maybe ?? 0} maybe</span>
+                    <span>{event.sponsored ? 'sponsored' : event.organizer}</span>
                   </div>
                 </Link>
-              ))}
+              )) : <EmptyPanel eyebrow="Upcoming" title="No approved upcoming events yet" body="The homepage only shows real approved events. Submit the first one to start building the calendar." action={<Link to="/submit" className="btn-primary h-11 px-4 text-[11px]">Submit event</Link>} />}
             </div>
-          ) : (
-            <div className="mt-6"><EmptyPanel eyebrow="No featured events" title="No upcoming featured events yet" body="When the first approved event lands, it shows up here with real attending, interested, and maybe activity instead of fake numbers." /></div>
-          )}
-        </div>
-      </section>
+          </div>
 
-      <section className="shell mt-16">
-        <div className="panel-cut p-6 md:p-8">
-          <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
-            <div>
-              <p className="eyebrow">Locked layer</p>
-              <h2 className="headline-md mt-3">What opens up after sign-up.</h2>
-              <p className="body-muted mt-4 max-w-xl">Access gating is used to create actual member value, not to fake exclusivity. Public visitors can see the culture. Members get the network.</p>
+          <div className="space-y-6">
+            <div className="panel-cut p-6 md:p-8">
+              <p className="eyebrow">Why join</p>
+              <div className="mt-4 grid gap-3">
+                <div className="panel-blade"><h3>Track attendance</h3><p className="mt-3 text-sm leading-7 text-silver/68">RSVP, show up with more context, and turn event traffic into profile and garage visibility.</p></div>
+                <div className="panel-blade"><h3>Submit better events</h3><p className="mt-3 text-sm leading-7 text-silver/68">Venue search, direct media uploads, sponsor-aware intake, and approval tracking make submissions more operationally useful.</p></div>
+                <div className="panel-blade"><h3>Carry the signal forward</h3><p className="mt-3 text-sm leading-7 text-silver/68">Profiles, groups, and build dossiers keep the event from being the end of the interaction.</p></div>
+              </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="panel-blade"><h3>Friends</h3><p>Send requests, accept or reject, remove friends, and build a scene map that feels personal instead of anonymous.</p></div>
-              <div className="panel-blade"><h3>Communities</h3><p>Create public or private car communities with member lists, owner/admin controls, real group posts, and hosted-event identity.</p></div>
-              <div className="panel-blade"><h3>Chat attachments</h3><p>Drop events directly into chat or send your live location through a privacy-aware location message.</p></div>
-              <div className="panel-blade"><h3>Member discovery</h3><p>Suggested profiles, verified standouts, garages, group affiliation, and event participation become visible in the member hub.</p></div>
+            <div className="panel-cut p-6 md:p-8">
+              <p className="eyebrow">Featured profiles</p>
+              {data?.featuredProfiles?.length ? (
+                <div className="mt-4 grid gap-3">
+                  {data.featuredProfiles.slice(0, 4).map((profile) => (
+                    <Link key={profile.id} to={`/profiles/${profile.slug}`} className="panel-blade">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h3>{profile.displayName}</h3>
+                          <p className="mt-2 text-sm text-silver/70">{profile.primaryCar || 'No primary build'} • {profile.location || 'No location'}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          {profile.featured ? <span className="status-chip">featured</span> : null}
+                          {profile.verified ? <span className="status-chip">verified</span> : null}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4"><EmptyPanel eyebrow="Profiles" title="No featured profiles yet" body="Featured members only show once there are real profiles worth surfacing alongside the event layer." /></div>
+              )}
             </div>
           </div>
         </div>
@@ -148,9 +164,10 @@ export default function Home() {
         <div className="panel-cut p-6 md:p-8">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="eyebrow">Community preview</p>
-              <h2 className="headline-md mt-3">A few public groups can show on the outside. Full access stays member-only.</h2>
+              <p className="eyebrow">Public groups</p>
+              <h2 className="headline-md mt-3">Crew identities, host pages, and member clusters that support the event surface.</h2>
             </div>
+            <Link to="/members/communities" className="btn-secondary h-11 px-4 text-[11px]">Group hub</Link>
           </div>
           {data?.publicCommunities?.length ? (
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -166,7 +183,7 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="mt-6"><EmptyPanel eyebrow="No public communities" title="Communities will appear here once members create them" body="Nothing is faked. Public groups only show once real members create them and make them visible." /></div>
+            <div className="mt-6"><EmptyPanel eyebrow="Communities" title="No public groups yet" body="Nothing is being faked. Groups appear here only when members create them and make them visible." /></div>
           )}
           {error ? <p className="mt-5 text-sm text-[#ff8f8f]">{error}</p> : null}
         </div>

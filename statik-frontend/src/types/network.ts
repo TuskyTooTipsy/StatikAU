@@ -3,6 +3,12 @@ export interface NetworkSiteState {
   maintenanceMode: boolean;
   registrationOpen: boolean;
   brandTagline: string;
+  eventVisibilityMode?: 'open' | 'curated';
+  mapProvider?: 'mapbox' | 'manual';
+  importsEnabled?: boolean;
+  featureWindowDaysDefault?: number;
+  homepageHeroMode?: 'events' | 'hybrid';
+  messageModerationEnabled?: boolean;
 }
 
 export interface NetworkUser {
@@ -68,9 +74,18 @@ export interface GarageVehicle {
   make: string;
   model: string;
   trim: string;
+  generation?: string;
+  specialEdition?: string;
+  bodyStyle?: string;
+  drivetrain?: string;
+  engineFamily?: string;
+  transmission?: string;
   nickname: string;
   stage: string;
+  ownershipStatus?: string;
   statusTags: string[];
+  purposeTags?: string[];
+  setupTags?: string[];
   visibility: 'public' | 'private';
   description: string;
   modTags: string[];
@@ -116,9 +131,10 @@ export interface NetworkEvent {
   category: string;
   organizer: string;
   featured: boolean;
-  approvalStatus: 'pending' | 'approved' | 'rejected';
+  approvalStatus: 'pending' | 'approved' | 'rejected' | 'revision_requested';
   createdByUserId: string;
   createdAt: string;
+  updatedAt?: string;
   hostCommunityId?: string;
   hostCommunity?: CommunityPreview | null;
   counts?: EventCounts;
@@ -128,6 +144,26 @@ export interface NetworkEvent {
     interested: NetworkProfile[];
     maybe: NetworkProfile[];
   };
+  sourceType?: 'user_submission' | 'imported' | 'statik_hosted' | 'partner' | 'manual_admin';
+  sourceName?: string;
+  sourceUrl?: string;
+  sponsored?: boolean;
+  sponsorName?: string;
+  venueType?: string;
+  entryType?: string;
+  pricingType?: string;
+  vehicleFocus?: string[];
+  tags?: string[];
+  hostLinks?: string[];
+  spectatorFriendly?: boolean;
+  familyFriendly?: boolean;
+  recurring?: boolean;
+  indoorOutdoor?: 'indoor' | 'outdoor' | 'mixed' | 'unknown';
+  locationDetails?: { label: string; address?: string; lat?: number; lng?: number; placeId?: string; suburb?: string; region?: string; country?: string } | null;
+  media?: MediaAsset[];
+  mediaIds?: string[];
+  relatedEvents?: Array<{ id: string; slug: string; name: string; date: string; time: string; location: string; category: string }>;
+  adminNotes?: string[];
 }
 
 export interface CommunityPreview {
@@ -294,11 +330,14 @@ export interface PublicPlatformPayload {
   site: NetworkSiteState;
   featuredProfiles: NetworkProfile[];
   featuredEvents: NetworkEvent[];
+  flagshipEvents?: NetworkEvent[];
+  upcomingEvents?: NetworkEvent[];
+  eventCategories?: Array<{ label: string; count: number }>;
   publicCommunities: CommunityPreview[];
   counts: {
-    members: number;
     approvedEvents: number;
     publicCommunities: number;
+    sponsoredEvents?: number;
   };
   foundingPhase: boolean;
   needsAdminBootstrap: boolean;
@@ -341,6 +380,7 @@ export interface AdminOverviewPayload {
     posts: number;
     media: number;
     openReports: number;
+    pendingImports?: number;
   };
   profiles: NetworkProfile[];
   events: NetworkEvent[];
@@ -365,5 +405,101 @@ export interface AdminOverviewPayload {
     targetId: string;
     createdAt: string;
     detail?: string;
+    undoAction?: string;
   }>;
+  approveBay?: {
+    events: NetworkEvent[];
+    imports: EventImportItem[];
+    reports: Array<{ id: string; targetType: string; targetId: string; reason: string; status: string; createdAt: string; note?: string }>;
+    posts: Array<{ id: string; queueType: string; caption: string; createdAt: string }>;
+  };
+  importSources?: EventImportSource[];
+  importRuns?: EventImportRun[];
+  importItems?: EventImportItem[];
+}
+
+
+export interface EventImportSource {
+  id: string;
+  key: string;
+  name: string;
+  baseUrl: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastRunAt?: string;
+  lastRunStatus?: 'queued' | 'success' | 'partial' | 'failed';
+  lastRunMessage?: string;
+}
+
+export interface EventImportRun {
+  id: string;
+  sourceId: string;
+  sourceKey: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: 'queued' | 'success' | 'partial' | 'failed';
+  importedCount: number;
+  duplicateCount: number;
+  errorCount: number;
+  note?: string;
+}
+
+export interface EventImportItem {
+  id: string;
+  sourceId: string;
+  runId: string;
+  sourceKey: string;
+  sourceName: string;
+  sourceUrl: string;
+  title: string;
+  location: string;
+  date: string;
+  time: string;
+  category: string;
+  description: string;
+  imageUrl?: string;
+  organizer?: string;
+  hostHint?: string;
+  rawText?: string;
+  normalizedTags: string[];
+  status: 'pending' | 'approved' | 'rejected' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+  linkedEventId?: string;
+  duplicateOfEventId?: string;
+  adminNote?: string;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'user' | 'admin';
+  createdAt: string;
+  isBanned?: boolean;
+  suspensionEndsAt?: string | null;
+  moderationNote?: string;
+  featureEndsAt?: string | null;
+  profile: NetworkProfile | null;
+  lastIps: string[];
+  recentSessions: Array<{ id: string; createdAt: string; lastSeenAt?: string; ip?: string; userAgent?: string }>;
+  recentActions: Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; detail?: string }>;
+  ownedCommunities: CommunityPreview[];
+  adminCommunities: CommunityPreview[];
+  hostedEvents: NetworkEvent[];
+  vehicles: GarageVehicle[];
+  media: MediaAsset[];
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  relatedReports: Array<{ id: string; targetType: string; targetId: string; reason: string; status: string; createdAt: string; note?: string }>;
+  profilePosts: ProfilePost[];
+  communityPosts: CommunityPost[];
+  messages: CommunityMessage[];
+  shortLinks: NetworkShortLink[];
+}
+
+export interface AdminMessageRecord extends CommunityMessage {
+  community?: CommunityPreview | null;
 }

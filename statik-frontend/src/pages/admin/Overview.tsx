@@ -208,6 +208,67 @@ export default function AdminOverviewPage() {
         </div>
       </div>
 
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <div className="panel-cut p-6 md:p-8">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="eyebrow">Approve bay</p>
+              <h2 className="headline-md mt-3">One queue for pending events, imports, flagged items, and unfeatured posts.</h2>
+            </div>
+            <span className="text-[11px] uppercase tracking-[0.24em] text-silver/56">{data.approveBay?.events.length || 0} events • {data.approveBay?.imports.length || 0} imports</span>
+          </div>
+          <div className="mt-6 grid gap-3">
+            {data.approveBay?.events.length ? data.approveBay.events.slice(0, 6).map((event) => (
+              <div key={event.id} className="panel-blade">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h3>{event.name}</h3>
+                    <p className="mt-2 text-sm text-silver/70">{event.location} • {event.date} • {event.approvalStatus}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={async () => { await networkApi.moderateEvent(event.id, { approvalStatus: 'approved' }); load(); }} className="btn-primary h-9 px-3 text-[10px]">Approve</button>
+                    <button type="button" onClick={async () => { await networkApi.moderateEvent(event.id, { approvalStatus: 'revision_requested', adminNote: 'Please refine the event details before publish.' }); load(); }} className="btn-secondary h-9 px-3 text-[10px]">Request revision</button>
+                  </div>
+                </div>
+              </div>
+            )) : <EmptyPanel eyebrow="Queue" title="No pending events" body="The event queue is currently clear." />}
+          </div>
+        </div>
+
+        <div className="panel-cut p-6 md:p-8">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="eyebrow">Imports + reports</p>
+              <h2 className="headline-md mt-3">External candidates and open safety signals waiting for review.</h2>
+            </div>
+            <span className="text-[11px] uppercase tracking-[0.24em] text-silver/56">{data.counts.pendingImports || 0} pending imports</span>
+          </div>
+          <div className="mt-6 grid gap-3">
+            {data.approveBay?.imports?.slice(0, 4).map((item) => (
+              <div key={item.id} className="panel-blade">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p className="mt-2 text-sm text-silver/70">{item.location} • {item.date} • {item.sourceName}</p>
+                  </div>
+                  <button type="button" onClick={async () => { await networkApi.moderateImportItem(item.id, { publishEvent: true }); load(); }} className="btn-secondary h-9 px-3 text-[10px]">Publish</button>
+                </div>
+              </div>
+            ))}
+            {data.approveBay?.reports?.slice(0, 4).map((report) => (
+              <div key={report.id} className="panel-blade">
+                <div className="flex items-center gap-2">
+                  <h3>{report.targetType}</h3>
+                  <span className="status-chip">{report.status}</span>
+                </div>
+                <p className="mt-2 text-sm text-silver/70">{report.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="panel-cut p-6 md:p-8">
         <p className="eyebrow">Audit</p>
         <div className="mt-6 grid gap-3">

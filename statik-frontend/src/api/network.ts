@@ -1,9 +1,15 @@
 import type {
+  AdminMessageRecord,
   AdminOverviewPayload,
+  AdminUserDetail,
+  AdminUserSummary,
   AuthPayload,
   CommunityDetail,
   CommunityPost,
   CommunityPreview,
+  EventImportItem,
+  EventImportRun,
+  EventImportSource,
   FriendsPayload,
   GarageVehicle,
   MemberHomePayload,
@@ -69,9 +75,44 @@ export const networkApi = {
   me: () => request<AuthPayload>('/auth/me'),
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 
-  listEvents: () => request<NetworkEvent[]>('/events'),
+  listEvents: (params?: { includePending?: boolean; category?: string; q?: string; featured?: boolean; sourceType?: string; scope?: 'upcoming' | 'past' | 'all' }) => {
+    const search = new URLSearchParams();
+    if (params?.includePending) search.set('includePending', 'true');
+    if (params?.category) search.set('category', params.category);
+    if (params?.q) search.set('q', params.q);
+    if (params?.featured) search.set('featured', 'true');
+    if (params?.sourceType) search.set('sourceType', params.sourceType);
+    if (params?.scope) search.set('scope', params.scope);
+    return request<NetworkEvent[]>(`/events${search.toString() ? `?${search.toString()}` : ''}`);
+  },
   getEvent: (slug: string) => request<NetworkEvent>(`/events/${slug}`),
-  submitEvent: (payload: { name: string; location: string; date: string; time: string; description: string; category: string; organizer: string; hostCommunityId?: string }) => request<NetworkEvent>('/events/submit', { method: 'POST', body: JSON.stringify(payload) }),
+  submitEvent: (payload: {
+    name: string;
+    location: string;
+    date: string;
+    time?: string;
+    description: string;
+    category: string;
+    organizer: string;
+    hostCommunityId?: string;
+    sponsored?: boolean;
+    sponsorName?: string;
+    venueType?: string;
+    entryType?: string;
+    pricingType?: string;
+    vehicleFocus?: string[];
+    tags?: string[];
+    spectatorFriendly?: boolean;
+    familyFriendly?: boolean;
+    recurring?: boolean;
+    indoorOutdoor?: 'indoor' | 'outdoor' | 'mixed' | 'unknown';
+    hostLinks?: string[];
+    mediaIds?: string[];
+    locationDetails?: { label: string; address?: string; lat?: number; lng?: number; placeId?: string; suburb?: string; region?: string; country?: string };
+    submittedByEmail?: string;
+    submittedByName?: string;
+  }) => request<NetworkEvent>('/events/submit', { method: 'POST', body: JSON.stringify(payload) }),
+  attachEventMedia: (eventId: string, mediaIds: string[]) => request<NetworkEvent>(`/events/${eventId}/media`, { method: 'PATCH', body: JSON.stringify({ mediaIds }) }),
   rsvpEvent: (eventId: string, status: 'interested' | 'attending' | 'maybe') => request<NetworkEvent>(`/events/${eventId}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
 
   listProfiles: (params?: { featured?: boolean; verified?: boolean; viewerUserId?: string }) => {
@@ -123,7 +164,7 @@ export const networkApi = {
   updateCommunityAdmin: (communityId: string, payload: { userId: string; action: 'promote' | 'demote' }) => request<{ success: boolean }>(`/communities/${communityId}/admins`, { method: 'POST', body: JSON.stringify(payload) }),
   kickCommunityMember: (communityId: string, userId: string) => request<{ success: boolean }>(`/communities/${communityId}/members/${userId}/kick`, { method: 'POST' }),
 
-  initUpload: (payload: { ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event'; ownerId: string; fileName: string; mimeType: string; size: number }) => request<{ assetId: string; uploadId: string; uploadUrl: string; maxBytes: number }>('/media/uploads/init', { method: 'POST', body: JSON.stringify(payload) }),
+  initUpload: (payload: { ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event'; ownerId: string; fileName: string; mimeType: string; size: number }) => request<{ assetId: string; uploadId: string; uploadUrl: string; maxBytes: number; acceptedMimeTypes?: string[] }>('/media/uploads/init', { method: 'POST', body: JSON.stringify(payload) }),
   deleteMedia: (assetId: string) => request<{ success: boolean }>(`/media/assets/${assetId}`, { method: 'DELETE' }),
 
   listMyShortLinks: () => request<NetworkShortLink[]>('/links/me'),
@@ -133,9 +174,23 @@ export const networkApi = {
   reportContent: (payload: { targetType: 'profile' | 'community' | 'profile_post' | 'community_post' | 'media'; targetId: string; reason: string }) => request<{ success: boolean }>('/reports', { method: 'POST', body: JSON.stringify(payload) }),
 
   getAdminOverview: () => request<AdminOverviewPayload>('/admin/overview'),
+  getApproveBay: () => request<AdminOverviewPayload['approveBay']>('/admin/approve-bay'),
+  listAdminUsers: (q?: string) => request<AdminUserSummary[]>(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  getAdminUser: (userId: string) => request<AdminUserDetail>(`/admin/users/${userId}`),
+  moderateUser: (userId: string, payload: { role?: 'user' | 'admin'; isBanned?: boolean; suspensionEndsAt?: string | null; moderationNote?: string; verifyProfile?: boolean; featureProfile?: boolean; featureEndsAt?: string | null }) => request<{ success: boolean }>(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  searchAdminMessages: (params?: { q?: string; userId?: string; communityId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set('q', params.q);
+    if (params?.userId) search.set('userId', params.userId);
+    if (params?.communityId) search.set('communityId', params.communityId);
+    return request<AdminMessageRecord[]>(`/admin/messages${search.toString() ? `?${search.toString()}` : ''}`);
+  },
+  getAdminImports: () => request<{ sources: EventImportSource[]; runs: EventImportRun[]; items: EventImportItem[] }>('/admin/imports'),
+  runAdminImport: (sourceKey: string) => request<EventImportRun>('/admin/imports/run', { method: 'POST', body: JSON.stringify({ sourceKey }) }),
+  moderateImportItem: (itemId: string, payload: Partial<Pick<EventImportItem, 'title' | 'location' | 'date' | 'time' | 'category' | 'description' | 'adminNote' | 'status'>> & { publishEvent?: boolean }) => request<{ success: boolean }>(`/admin/imports/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   updateSite: (payload: Partial<NetworkSiteState>) => request<NetworkSiteState>('/admin/site', { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateProfile: (profileId: string, payload: { featured?: boolean; verified?: boolean; promoted?: boolean; analyticsVisibility?: 'public' | 'private' }) => request<{ success: boolean }>(`/admin/profiles/${profileId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  moderateEvent: (eventId: string, payload: { featured?: boolean; approvalStatus?: 'pending' | 'approved' | 'rejected' }) => request<{ success: boolean }>(`/admin/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  moderateEvent: (eventId: string, payload: { featured?: boolean; approvalStatus?: 'pending' | 'approved' | 'rejected' | 'revision_requested'; adminNote?: string; sponsored?: boolean; sponsorName?: string }) => request<{ success: boolean }>(`/admin/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateCommunity: (communityId: string, payload: Partial<CommunityDetail>) => request<{ success: boolean }>(`/admin/communities/${communityId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateReport: (reportId: string, payload: { status: 'open' | 'resolved' | 'dismissed'; note?: string }) => request<{ success: boolean }>(`/admin/reports/${reportId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   adminDeleteMedia: (assetId: string) => request<{ success: boolean }>(`/admin/media/${assetId}`, { method: 'DELETE' }),
