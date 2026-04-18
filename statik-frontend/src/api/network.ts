@@ -7,12 +7,15 @@ import type {
   CommunityDetail,
   CommunityPost,
   CommunityPreview,
+  ContentItem,
+  BusinessListing,
   EventImportItem,
   EventImportRun,
   EventImportSource,
   FriendsPayload,
   GarageVehicle,
   MemberHomePayload,
+  MediaAsset,
   NetworkEvent,
   NetworkProfile,
   NetworkProfileLink,
@@ -79,7 +82,7 @@ export const networkApi = {
   },
   resolveShortLink: (slug: string, src?: string) => request<{ href: string; absoluteHref: string }>(`/links/resolve/${encodeURIComponent(slug)}${src ? `?src=${encodeURIComponent(src)}` : ''}`),
   getMemberHome: () => request<MemberHomePayload>('/platform/member-home'),
-  register: (payload: { email: string; password: string; displayName: string }) => request<AuthPayload>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+  register: (payload: { email: string; password: string; displayName: string; username?: string; termsAccepted?: boolean; location?: string; memberType?: string; bio?: string; interestTags?: string[]; preferredEventTypes?: string[]; discoveryVisible?: boolean; newestMemberVisible?: boolean; firstVehicle?: { vehicleType?: 'car' | 'bike' | 'truck' | 'other'; year?: string; make: string; model: string; trim?: string; specialEdition?: string; stage?: string } }) => request<AuthPayload>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
   login: (payload: { email: string; password: string }) => request<AuthPayload>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
   me: () => request<AuthPayload>('/auth/me'),
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
@@ -124,6 +127,30 @@ export const networkApi = {
   attachEventMedia: (eventId: string, mediaIds: string[]) => request<NetworkEvent>(`/events/${eventId}/media`, { method: 'PATCH', body: JSON.stringify({ mediaIds }) }),
   rsvpEvent: (eventId: string, status: 'interested' | 'attending' | 'maybe') => request<NetworkEvent>(`/events/${eventId}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
 
+
+  listContent: (type: 'articles' | 'news', params?: { q?: string; category?: string; tag?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set('q', params.q);
+    if (params?.category) search.set('category', params.category);
+    if (params?.tag) search.set('tag', params.tag);
+    return request<{ items: ContentItem[]; categories: string[]; tags: string[] }>(`/content/${type}${search.toString() ? `?${search.toString()}` : ''}`);
+  },
+  getContent: (type: 'articles' | 'news', slug: string) => request<ContentItem>(`/content/${type}/${slug}`),
+  listBusinesses: (params?: { q?: string; category?: string; region?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set('q', params.q);
+    if (params?.category) search.set('category', params.category);
+    if (params?.region) search.set('region', params.region);
+    return request<{ items: BusinessListing[]; categories: string[]; regions: string[] }>(`/businesses${search.toString() ? `?${search.toString()}` : ''}`);
+  },
+  getBusiness: (slug: string) => request<BusinessListing>(`/businesses/${slug}`),
+  submitBusiness: (payload: Partial<BusinessListing> & { businessName: string }) => request<{ success: boolean; businessId: string }>('/businesses/submit', { method: 'POST', body: JSON.stringify(payload) }),
+
+  getNewestMembers: (params?: number | { limit?: number }) => {
+    const limit = typeof params === 'number' ? params : params?.limit || 12;
+    return request<{ enabled: boolean; items: NetworkProfile[] }>(`/profiles/discovery/newest?limit=${limit}`);
+  },
+
   listProfiles: (params?: { featured?: boolean; verified?: boolean; viewerUserId?: string }) => {
     const search = new URLSearchParams();
     if (params?.featured) search.set('featured', 'true');
@@ -137,7 +164,7 @@ export const networkApi = {
     if (source) search.set('source', source);
     return request<NetworkProfile>(`/profiles/${slug}${search.toString() ? `?${search.toString()}` : ''}`);
   },
-  updateMyProfile: (payload: { displayName: string; bio: string; location: string; primaryCar: string; avatarUrl: string; bannerUrl: string; about: string; currentlyBuilding: string; sceneTags: string[]; analyticsVisibility: 'public' | 'private' }) => request<NetworkProfile>('/profiles/me', { method: 'PATCH', body: JSON.stringify(payload) }),
+  updateMyProfile: (payload: { displayName: string; bio: string; location: string; primaryCar: string; avatarUrl: string; bannerUrl: string; about: string; currentlyBuilding: string; sceneTags: string[]; analyticsVisibility: 'public' | 'private'; memberType?: string; interestTags?: string[]; preferredEventTypes?: string[]; discoveryVisible?: boolean; newestMemberVisible?: boolean; showLocation?: boolean; showEventActivity?: boolean; showGroupAffiliations?: boolean }) => request<NetworkProfile>('/profiles/me', { method: 'PATCH', body: JSON.stringify(payload) }),
   getMyGarage: () => request<GarageVehicle[]>('/profiles/me/garage'),
   createGarageVehicle: (payload: Partial<GarageVehicle> & { make: string; model: string }) => request<GarageVehicle[]>('/profiles/me/garage', { method: 'POST', body: JSON.stringify(payload) }),
   updateGarageVehicle: (vehicleId: string, payload: Partial<GarageVehicle>) => request<GarageVehicle[]>(`/profiles/me/garage/${vehicleId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
@@ -173,7 +200,8 @@ export const networkApi = {
   updateCommunityAdmin: (communityId: string, payload: { userId: string; action: 'promote' | 'demote' }) => request<{ success: boolean }>(`/communities/${communityId}/admins`, { method: 'POST', body: JSON.stringify(payload) }),
   kickCommunityMember: (communityId: string, userId: string) => request<{ success: boolean }>(`/communities/${communityId}/members/${userId}/kick`, { method: 'POST' }),
 
-  initUpload: (payload: { ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event'; ownerId: string; fileName: string; mimeType: string; size: number }) => request<{ assetId: string; uploadId: string; uploadUrl: string; maxBytes: number; acceptedMimeTypes?: string[] }>('/media/uploads/init', { method: 'POST', body: JSON.stringify(payload) }),
+  initUpload: (payload: { ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event' | 'content' | 'business'; ownerId: string; fileName: string; mimeType: string; size: number }) => request<{ assetId: string; uploadId: string; uploadUrl: string; maxBytes: number; acceptedMimeTypes?: string[] }>('/media/uploads/init', { method: 'POST', body: JSON.stringify(payload) }),
+  updateMedia: (assetId: string, payload: { displayTitle?: string; caption?: string; altText?: string; ownerType?: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event' | 'content' | 'business'; ownerId?: string }) => request<MediaAsset>(`/media/assets/${assetId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteMedia: (assetId: string) => request<{ success: boolean }>(`/media/assets/${assetId}`, { method: 'DELETE' }),
 
   listMyShortLinks: () => request<NetworkShortLink[]>('/links/me'),
@@ -208,6 +236,28 @@ export const networkApi = {
   runAdminImport: (sourceKey: string) => request<EventImportRun>('/admin/imports/run', { method: 'POST', body: JSON.stringify({ sourceKey }) }),
   updateImportSource: (sourceId: string, payload: Partial<EventImportSource>) => request<{ success: boolean }>(`/admin/imports/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateImportItem: (itemId: string, payload: Partial<Pick<EventImportItem, 'title' | 'location' | 'date' | 'time' | 'category' | 'description' | 'adminNote' | 'status'>> & { publishEvent?: boolean }) => request<{ success: boolean }>(`/admin/imports/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
+  getAdminContent: (params?: { type?: 'article' | 'news'; status?: string; q?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.type) search.set('type', params.type);
+    if (params?.status) search.set('status', params.status);
+    if (params?.q) search.set('q', params.q);
+    return request<{ items: ContentItem[]; revisions: any[]; aiDrafts: any[] }>(`/admin/content${search.toString() ? `?${search.toString()}` : ''}`);
+  },
+  createAdminContent: (payload: Partial<ContentItem> & { type: 'article' | 'news'; title: string }) => request<ContentItem>('/admin/content', { method: 'POST', body: JSON.stringify(payload) }),
+  updateAdminContent: (contentId: string, payload: Partial<ContentItem> & { type: 'article' | 'news'; title: string }) => request<ContentItem>(`/admin/content/${contentId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteAdminContent: (contentId: string) => request<{ success: boolean }>(`/admin/content/${contentId}`, { method: 'DELETE' }),
+  generateAiDraft: (payload: { contentType: 'article' | 'news'; mode?: string; tone?: string; length?: string; prompt?: string; sourceContext?: string; linkedEventId?: string; linkedBusinessId?: string; linkedProfileId?: string; linkedCommunityId?: string }) => request<{ id: string; output: string; aiAssisted: boolean }>('/admin/ai-writer/generate', { method: 'POST', body: JSON.stringify(payload) }),
+  getAdminBusinesses: (params?: { q?: string; status?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set('q', params.q);
+    if (params?.status) search.set('status', params.status);
+    return request<{ items: BusinessListing[]; categories: string[] }>(`/admin/businesses${search.toString() ? `?${search.toString()}` : ''}`);
+  },
+  createAdminBusiness: (payload: Partial<BusinessListing> & { businessName: string }) => request<BusinessListing>('/admin/businesses', { method: 'POST', body: JSON.stringify(payload) }),
+  updateAdminBusiness: (businessId: string, payload: Partial<BusinessListing> & { businessName: string }) => request<BusinessListing>(`/admin/businesses/${businessId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteAdminBusiness: (businessId: string) => request<{ success: boolean }>(`/admin/businesses/${businessId}`, { method: 'DELETE' }),
+
   updateSite: (payload: Partial<NetworkSiteState>) => request<NetworkSiteState>('/admin/site', { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateProfile: (profileId: string, payload: { featured?: boolean; verified?: boolean; promoted?: boolean; analyticsVisibility?: 'public' | 'private' }) => request<{ success: boolean }>(`/admin/profiles/${profileId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateEvent: (eventId: string, payload: { featured?: boolean; approvalStatus?: 'pending' | 'approved' | 'rejected' | 'revision_requested'; adminNote?: string; sponsored?: boolean; sponsorName?: string }) => request<{ success: boolean }>(`/admin/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(payload) }),

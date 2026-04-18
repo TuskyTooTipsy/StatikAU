@@ -8,6 +8,9 @@ const publicLinks = [
   { label: 'Home', href: '/' },
   { label: 'Events', href: '/events' },
   { label: 'Submit', href: '/submit' },
+  { label: 'Articles', href: '/articles' },
+  { label: 'News', href: '/news' },
+  { label: 'Businesses', href: '/businesses' },
 ];
 
 export default function Navbar() {

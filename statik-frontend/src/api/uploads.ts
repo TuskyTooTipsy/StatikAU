@@ -32,15 +32,19 @@ function uploadError(xhr: XMLHttpRequest) {
 
 export async function uploadMediaFile(
   file: File,
-  ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event',
+  ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event' | 'content' | 'business',
   ownerId: string,
   onProgress?: (value: number) => void,
-): Promise<Pick<MediaAsset, 'id' | 'url' | 'kind' | 'fileName' | 'mimeType' | 'size' | 'status'>> {
+): Promise<Pick<MediaAsset, 'id' | 'url' | 'kind' | 'fileName' | 'originalFilename' | 'displayTitle' | 'caption' | 'altText' | 'mimeType' | 'size' | 'status'>> {
   const mimeType = resolveMime(file);
   const init = await networkApi.initUpload({
     ownerType,
     ownerId,
     fileName: file.name,
+    originalFilename: file.name,
+    displayTitle: '',
+    caption: '',
+    altText: '',
     mimeType,
     size: file.size,
   });
@@ -82,6 +86,10 @@ export async function uploadMediaFile(
     url: result.url,
     kind: mimeType.startsWith('video/') ? 'video' : 'image',
     fileName: file.name,
+    originalFilename: file.name,
+    displayTitle: '',
+    caption: '',
+    altText: '',
     mimeType,
     size: file.size,
     status: 'uploaded',
