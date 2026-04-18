@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -24,30 +57,37 @@ const communities_1 = __importDefault(require("./routes/communities"));
 const search_1 = __importDefault(require("./routes/search"));
 const submissions_1 = __importDefault(require("./routes/submissions"));
 const admin_1 = __importDefault(require("./routes/admin"));
+const media_1 = __importDefault(require("./routes/media"));
+const links_1 = __importStar(require("./routes/links"));
+const analytics_1 = __importDefault(require("./routes/analytics"));
+const reports_1 = __importDefault(require("./routes/reports"));
 const env_1 = require("./lib/env");
 const bootstrap_1 = require("./lib/bootstrap");
+const store_1 = require("./lib/store");
 function createApp() {
     const app = (0, express_1.default)();
-    app.use((0, helmet_1.default)());
+    app.use((0, helmet_1.default)({ crossOriginResourcePolicy: false }));
     app.use((0, compression_1.default)());
     app.use((0, cors_1.default)({
         origin: (0, env_1.getAllowedOrigins)(),
         credentials: true,
     }));
+    app.use('/uploads', express_1.default.static(store_1.UPLOADS_DIR));
+    app.use((0, links_1.redirectRouter)());
     app.post('/api/checkout/webhook', express_1.default.raw({ type: 'application/json' }));
     app.use((req, res, next) => {
         if (req.path === '/api/checkout/webhook') {
             next();
             return;
         }
-        express_1.default.json()(req, res, next);
+        express_1.default.json({ limit: '2mb' })(req, res, next);
     });
     app.get('/', (_req, res) => {
         res.json({
             name: 'STATIK API',
             status: 'ok',
             frontendUrl: env_1.env.FRONTEND_URL,
-            mode: 'launch-safe-fallback',
+            mode: 'network-expanded',
             healthcheck: '/api/health',
         });
     });
@@ -58,7 +98,7 @@ function createApp() {
         res.status(200).json({
             status: 'ok',
             uptime: process.uptime(),
-            mode: 'launch-safe-fallback',
+            mode: 'network-expanded',
         });
     });
     app.use('/api/products', (0, products_1.default)());
@@ -76,6 +116,10 @@ function createApp() {
     app.use('/api/search', (0, search_1.default)());
     app.use('/api/submissions', (0, submissions_1.default)());
     app.use('/api/admin', (0, admin_1.default)());
+    app.use('/api/media', (0, media_1.default)());
+    app.use('/api/links', (0, links_1.default)());
+    app.use('/api/analytics', (0, analytics_1.default)());
+    app.use('/api/reports', (0, reports_1.default)());
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not Found' });
     });

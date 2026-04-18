@@ -19,11 +19,17 @@ function adminRouter() {
                 pendingEvents: db.events.filter((event) => event.approvalStatus === 'pending').length,
                 communities: db.communities.length,
                 messages: db.messages.length,
+                vehicles: db.garageVehicles.length,
+                posts: db.profilePosts.length + db.communityPosts.length,
+                media: db.mediaAssets.filter((asset) => asset.status === 'uploaded').length,
+                openReports: db.reports.filter((report) => report.status === 'open').length,
             },
             profiles: db.profiles.map((profile) => ({ ...profile, stats: (0, store_1.profileStats)(db, profile.id) })),
             events: db.events,
             communities: db.communities.map((community) => ({ ...community, memberCount: community.memberUserIds.length })),
-            auditLogs: db.auditLogs.slice(0, 40),
+            reports: db.reports.slice(0, 80),
+            media: db.mediaAssets.filter((asset) => asset.status === 'uploaded').slice(0, 80),
+            auditLogs: db.auditLogs.slice(0, 60),
         });
     });
     router.patch('/site', auth_1.requireAdmin, async (req, res) => {
@@ -48,6 +54,7 @@ function adminRouter() {
             featured: zod_1.z.boolean().optional(),
             verified: zod_1.z.boolean().optional(),
             promoted: zod_1.z.boolean().optional(),
+            analyticsVisibility: zod_1.z.enum(['public', 'private']).optional(),
         });
         const parsed = schema.safeParse(req.body);
         if (!parsed.success)
@@ -64,6 +71,8 @@ function adminRouter() {
                     profile.verified = parsed.data.verified;
                 if (typeof parsed.data.promoted === 'boolean')
                     profile.promoted = parsed.data.promoted;
+                if (parsed.data.analyticsVisibility)
+                    profile.analyticsVisibility = parsed.data.analyticsVisibility;
                 (0, store_1.logAudit)(db, viewer.user.id, 'profile_moderated', 'profile', profile.id);
             });
         }
@@ -95,6 +104,81 @@ function adminRouter() {
         }
         catch (error) {
             return res.status(404).json({ error: error.message || 'Event not found' });
+        }
+        return res.json({ success: true });
+    });
+    router.patch('/communities/:communityId', auth_1.requireAdmin, async (req, res) => {
+        const schema = zod_1.z.object({
+            discoverable: zod_1.z.boolean().optional(),
+            featuredMemberUserIds: zod_1.z.array(zod_1.z.string()).optional(),
+            featuredVehicleIds: zod_1.z.array(zod_1.z.string()).optional(),
+            featuredEventIds: zod_1.z.array(zod_1.z.string()).optional(),
+            featuredPostIds: zod_1.z.array(zod_1.z.string()).optional(),
+        });
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success)
+            return res.status(400).json({ error: 'Invalid community moderation payload' });
+        const viewer = req.viewer;
+        try {
+            (0, store_1.mutateDb)((db) => {
+                const community = db.communities.find((item) => item.id === req.params.communityId);
+                if (!community)
+                    throw new Error('Community not found');
+                Object.assign(community, parsed.data);
+                (0, store_1.logAudit)(db, viewer.user.id, 'community_moderated', 'community', community.id, JSON.stringify(parsed.data));
+            });
+        }
+        catch (error) {
+            return res.status(404).json({ error: error.message || 'Community not found' });
+        }
+        return res.json({ success: true });
+    });
+    router.patch('/reports/:reportId', auth_1.requireAdmin, async (req, res) => {
+        const schema = zod_1.z.object({
+            status: zod_1.z.enum(['open', 'resolved', 'dismissed']),
+            note: zod_1.z.string().max(280).optional(),
+        });
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success)
+            return res.status(400).json({ error: 'Invalid report payload' });
+        const viewer = req.viewer;
+        try {
+            (0, store_1.mutateDb)((db) => {
+                const report = db.reports.find((item) => item.id === req.params.reportId);
+                if (!report)
+                    throw new Error('Report not found');
+                report.status = parsed.data.status;
+                report.note = parsed.data.note;
+                report.resolvedAt = parsed.data.status === 'open' ? undefined : new Date().toISOString();
+                (0, store_1.logAudit)(db, viewer.user.id, 'report_moderated', 'report', report.id, report.status);
+            });
+        }
+        catch (error) {
+            return res.status(404).json({ error: error.message || 'Report not found' });
+        }
+        return res.json({ success: true });
+    });
+    router.delete('/media/:assetId', auth_1.requireAdmin, async (req, res) => {
+        const viewer = req.viewer;
+        try {
+            (0, store_1.mutateDb)((db) => {
+                const asset = db.mediaAssets.find((item) => item.id === req.params.assetId);
+                if (!asset)
+                    throw new Error('Media not found');
+                (0, store_1.removeMediaFile)(asset.storageKey);
+                asset.status = 'deleted';
+                db.garageVehicles.forEach((vehicle) => {
+                    vehicle.mediaIds = vehicle.mediaIds.filter((id) => id !== asset.id);
+                    if (vehicle.heroMediaId === asset.id)
+                        vehicle.heroMediaId = vehicle.mediaIds[0];
+                });
+                db.profilePosts.forEach((post) => { post.mediaIds = post.mediaIds.filter((id) => id !== asset.id); });
+                db.communityPosts.forEach((post) => { post.mediaIds = post.mediaIds.filter((id) => id !== asset.id); });
+                (0, store_1.logAudit)(db, viewer.user.id, 'media_removed_admin', 'media', asset.id);
+            });
+        }
+        catch (error) {
+            return res.status(404).json({ error: error.message || 'Media not found' });
         }
         return res.json({ success: true });
     });

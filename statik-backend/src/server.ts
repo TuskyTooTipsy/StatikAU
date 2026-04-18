@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -17,13 +18,18 @@ import communitiesRouter from './routes/communities';
 import searchRouter from './routes/search';
 import submissionsRouter from './routes/submissions';
 import adminRouter from './routes/admin';
+import mediaRouter from './routes/media';
+import linksRouter, { redirectRouter } from './routes/links';
+import analyticsRouter from './routes/analytics';
+import reportsRouter from './routes/reports';
 import { env, getAllowedOrigins } from './lib/env';
 import { ensureBootstrapAdmin } from './lib/bootstrap';
+import { UPLOADS_DIR } from './lib/store';
 
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(compression());
   app.use(
     cors({
@@ -32,13 +38,16 @@ export function createApp() {
     }),
   );
 
+  app.use('/uploads', express.static(UPLOADS_DIR));
+  app.use(redirectRouter());
+
   app.post('/api/checkout/webhook', express.raw({ type: 'application/json' }));
   app.use((req, res, next) => {
     if (req.path === '/api/checkout/webhook') {
       next();
       return;
     }
-    express.json()(req, res, next);
+    express.json({ limit: '2mb' })(req, res, next);
   });
 
   app.get('/', (_req: Request, res: Response) => {
@@ -46,7 +55,7 @@ export function createApp() {
       name: 'STATIK API',
       status: 'ok',
       frontendUrl: env.FRONTEND_URL,
-      mode: 'launch-safe-fallback',
+      mode: 'network-expanded',
       healthcheck: '/api/health',
     });
   });
@@ -59,7 +68,7 @@ export function createApp() {
     res.status(200).json({
       status: 'ok',
       uptime: process.uptime(),
-      mode: 'launch-safe-fallback',
+      mode: 'network-expanded',
     });
   });
 
@@ -78,6 +87,10 @@ export function createApp() {
   app.use('/api/search', searchRouter());
   app.use('/api/submissions', submissionsRouter());
   app.use('/api/admin', adminRouter());
+  app.use('/api/media', mediaRouter());
+  app.use('/api/links', linksRouter());
+  app.use('/api/analytics', analyticsRouter());
+  app.use('/api/reports', reportsRouter());
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ error: 'Not Found' });

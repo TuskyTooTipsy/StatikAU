@@ -27,8 +27,16 @@ function notablePeople(db, eventId, status) {
 }
 function mapEvent(db, event, viewerUserId) {
     const viewerResponse = viewerUserId ? db.eventResponses.find((response) => response.eventId === event.id && response.userId === viewerUserId) : null;
+    const hostCommunity = event.hostCommunityId ? db.communities.find((item) => item.id === event.hostCommunityId) || null : null;
     return {
         ...event,
+        hostCommunity: hostCommunity ? {
+            id: hostCommunity.id,
+            slug: hostCommunity.slug,
+            name: hostCommunity.name,
+            visibility: hostCommunity.visibility,
+            region: hostCommunity.region,
+        } : null,
         counts: responseCounts(db, event.id),
         notable: {
             attending: notablePeople(db, event.id, 'attending'),
@@ -71,12 +79,19 @@ function eventsRouter() {
             description: zod_1.z.string().min(10).max(600),
             category: zod_1.z.string().min(2).max(40),
             organizer: zod_1.z.string().min(2).max(80),
+            hostCommunityId: zod_1.z.string().optional(),
         });
         const parsed = schema.safeParse(req.body);
         if (!parsed.success)
             return res.status(400).json({ error: 'Invalid event submission payload' });
         const viewer = req.viewer;
         const event = (0, store_1.mutateDb)((db) => {
+            if (parsed.data.hostCommunityId) {
+                const community = db.communities.find((item) => item.id === parsed.data.hostCommunityId);
+                if (!community || (!(0, store_1.canManageCommunity)(community, viewer.user.id) && viewer.user.role !== 'admin')) {
+                    throw new Error('Not allowed to attach that community to this event');
+                }
+            }
             const slug = (0, store_1.uniqueSlug)(parsed.data.name, db.events.map((item) => item.slug));
             const created = {
                 id: (0, store_1.createId)('event'),
@@ -88,7 +103,7 @@ function eventsRouter() {
                 ...parsed.data,
             };
             db.events.push(created);
-            (0, store_1.logAudit)(db, viewer.user.id, 'submit_event', 'event', created.id);
+            (0, store_1.logAudit)(db, viewer.user.id, 'submit_event', 'event', created.id, created.hostCommunityId || undefined);
             return created;
         });
         return res.status(201).json(event);

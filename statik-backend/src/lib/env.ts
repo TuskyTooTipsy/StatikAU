@@ -13,6 +13,8 @@ export const envSchema = z.object({
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_DISPLAY_NAME: z.string().min(2).max(40).optional(),
+  PUBLIC_SERVER_URL: z.string().optional(),
+  MAX_UPLOAD_BYTES: z.string().default(String(40 * 1024 * 1024)),
   NODE_ENV: z.string().default('development'),
 });
 
@@ -27,4 +29,13 @@ export function getAllowedOrigins() {
   ];
 
   return Array.from(new Set((configured && configured.length > 0 ? configured : defaults).filter(Boolean)));
+}
+
+export function getPublicServerUrl() {
+  return (env.PUBLIC_SERVER_URL || `http://localhost:${env.PORT}`).replace(/\/$/, '');
+}
+
+export function getMaxUploadBytes() {
+  const parsed = Number(env.MAX_UPLOAD_BYTES);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 40 * 1024 * 1024;
 }

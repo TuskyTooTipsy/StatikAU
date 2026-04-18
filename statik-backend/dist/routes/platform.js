@@ -12,7 +12,7 @@ function mapProfileCard(db, profile, viewerUserId) {
         mutualFriends: viewerUserId ? (0, store_1.countMutualFriends)(db, profile.userId, viewerUserId) : 0,
     };
 }
-function mapCommunityPreview(community) {
+function mapCommunityPreview(community, viewerUserId) {
     return {
         id: community.id,
         slug: community.slug,
@@ -21,7 +21,10 @@ function mapCommunityPreview(community) {
         visibility: community.visibility,
         avatarUrl: community.avatarUrl,
         bannerUrl: community.bannerUrl,
+        region: community.region,
+        tags: community.tags,
         memberCount: community.memberUserIds.length,
+        isMember: viewerUserId ? community.memberUserIds.includes(viewerUserId) : false,
     };
 }
 function platformRouter() {
@@ -53,10 +56,10 @@ function platformRouter() {
             };
         });
         const publicCommunities = db.communities
-            .filter((community) => community.visibility === 'public')
+            .filter((community) => community.visibility === 'public' && community.discoverable)
             .sort((a, b) => b.memberUserIds.length - a.memberUserIds.length)
             .slice(0, 5)
-            .map(mapCommunityPreview);
+            .map((community) => mapCommunityPreview(community));
         return res.json({
             site: db.site,
             featuredProfiles,
@@ -65,7 +68,7 @@ function platformRouter() {
             counts: {
                 members: db.users.length,
                 approvedEvents: db.events.filter((event) => event.approvalStatus === 'approved').length,
-                publicCommunities: db.communities.filter((community) => community.visibility === 'public').length,
+                publicCommunities: db.communities.filter((community) => community.visibility === 'public' && community.discoverable).length,
             },
             foundingPhase: db.users.length < 25,
             needsAdminBootstrap: db.users.length === 0,
@@ -85,9 +88,9 @@ function platformRouter() {
             .slice(0, 8)
             .map((profile) => mapProfileCard(db, profile, viewer.user.id));
         const communities = db.communities
-            .filter((community) => community.memberUserIds.includes(viewer.user.id) || community.visibility === 'public')
+            .filter((community) => (community.memberUserIds.includes(viewer.user.id) || community.visibility === 'public') && community.discoverable)
             .slice(0, 8)
-            .map(mapCommunityPreview);
+            .map((community) => mapCommunityPreview(community, viewer.user.id));
         const pendingRequests = db.friendRequests.filter((request) => request.toUserId === viewer.user.id && request.status === 'pending').length;
         return res.json({
             site: db.site,
@@ -102,6 +105,8 @@ function platformRouter() {
                 friends: (0, store_1.getFriendUserIds)(db, viewer.user.id).length,
                 communities: db.communities.filter((community) => community.memberUserIds.includes(viewer.user.id)).length,
                 attending: db.eventResponses.filter((item) => item.userId === viewer.user.id && item.status === 'attending').length,
+                vehicles: db.garageVehicles.filter((vehicle) => vehicle.profileId === viewer.profile.id).length,
+                posts: db.profilePosts.filter((post) => post.profileId === viewer.profile.id).length,
             },
         });
     });

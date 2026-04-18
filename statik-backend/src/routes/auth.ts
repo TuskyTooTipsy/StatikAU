@@ -63,6 +63,10 @@ export default function authRouter() {
           verified: false,
           featured: false,
           promoted: false,
+          about: '',
+          currentlyBuilding: '',
+          sceneTags: [],
+          analyticsVisibility: 'public',
           createdAt,
         });
 
