@@ -1,26 +1,27 @@
-STATIK NETLIFY DEPLOY NOTES
+STATIK deployment notes
 
-This repo is set up so Netlify should deploy from the REPO ROOT.
-Do not set a Base directory.
-Do not set a Build command manually.
-Do not set a Publish directory manually.
-Do not set a Functions directory manually.
+Backend runs on Railway from statik-backend.
+Frontend runs on Netlify from statik-frontend.
+Public canonical domain is https://statik.au.
 
-Netlify should read these values from the root netlify.toml.
+Backend Railway env:
+PUBLIC_APP_URL=https://statik.au
+FRONTEND_URL=https://statik.au
+ALLOWED_ORIGINS=https://statik.au,https://www.statik.au
+PUBLIC_SERVER_URL=https://YOUR-RAILWAY-BACKEND-DOMAIN
+ADMIN_EMAIL=...
+ADMIN_PASSWORD=...
+ADMIN_DISPLAY_NAME=STATIK Admin
+JWT_SECRET=...
+MAX_UPLOAD_BYTES=41943040
+STORAGE_PROVIDER=local
+UPLOADS_DIR=/data/uploads
 
-Expected repo root structure:
-- netlify.toml
-- statik-frontend/
-- statik-backend/
+Mount a Railway volume at /data if using local uploads/JSON persistence.
 
-Frontend build is handled by:
-cd statik-frontend && npm install --no-audit --no-fund && npm run build
+Frontend Netlify env:
+VITE_PUBLIC_APP_URL=https://statik.au
+VITE_API_BASE_URL=https://YOUR-RAILWAY-BACKEND-DOMAIN
+VITE_MAPBOX_TOKEN=...
 
-Required Netlify environment variables:
-- VITE_API_BASE_URL=https://YOUR-BACKEND-DOMAIN/api
-- VITE_STRIPE_PUBLISHABLE_KEY=pk_live_or_test_key_if_used
-
-Notes:
-- frontend package-lock.json was intentionally removed because the old lockfile referenced a private registry and broke Netlify installs
-- frontend build tooling was moved into dependencies so hosts that skip devDependencies still install vite
-- extra frontend netlify.toml was removed so only the root config is used
+Netlify SPA redirects keep /s/:slug on statik.au. The frontend resolves and tracks shortlinks by calling /api/links/resolve/:slug on the backend.

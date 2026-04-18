@@ -20,7 +20,7 @@ import {
   uniqueSlug,
   uniqueVisitors,
 } from '../lib/store';
-import { getPublicServerUrl } from '../lib/env';
+import { getPublicAppUrl } from '../lib/env';
 
 function mapProfileSummary(db: ReturnType<typeof readDb>, profile: any, viewerUserId?: string) {
   const user = db.users.find((item) => item.id === profile.userId);
@@ -101,8 +101,8 @@ function mapProfileDetail(db: ReturnType<typeof readDb>, profile: any, viewerUse
   const externalLinks = db.profileLinks.filter((item) => item.profileId === profile.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const shortLinks = getProfileShortLinks(db, profile).map((link) => ({
     ...link,
-    shortUrl: `${getPublicServerUrl()}/s/${link.slug}`,
-    qrUrl: `${getPublicServerUrl()}/s/${link.slug}?src=qr`,
+    shortUrl: `${getPublicAppUrl()}/s/${link.slug}`,
+    qrUrl: `${getPublicAppUrl()}/s/${link.slug}?src=qr`,
   }));
 
   return {
@@ -157,6 +157,16 @@ export default function profilesRouter() {
       drivetrain: z.string().max(40).optional().default(''),
       engineFamily: z.string().max(60).optional().default(''),
       transmission: z.string().max(40).optional().default(''),
+      engineCode: z.string().max(40).optional().default(''),
+      induction: z.string().max(40).optional().default(''),
+      fuelType: z.string().max(40).optional().default(''),
+      colourWrap: z.string().max(80).optional().default(''),
+      wheelTyreSpec: z.string().max(160).optional().default(''),
+      suspensionSetup: z.string().max(160).optional().default(''),
+      engineMods: z.string().max(240).optional().default(''),
+      aeroBodyMods: z.string().max(240).optional().default(''),
+      interiorAudioNotes: z.string().max(240).optional().default(''),
+      performanceNotes: z.string().max(240).optional().default(''),
       nickname: z.string().max(40).optional().default(''),
       stage: z.string().max(60).optional().default(''),
       ownershipStatus: z.string().max(40).optional().default(''),
@@ -211,6 +221,16 @@ export default function profilesRouter() {
       drivetrain: z.string().max(40).optional(),
       engineFamily: z.string().max(60).optional(),
       transmission: z.string().max(40).optional(),
+      engineCode: z.string().max(40).optional(),
+      induction: z.string().max(40).optional(),
+      fuelType: z.string().max(40).optional(),
+      colourWrap: z.string().max(80).optional(),
+      wheelTyreSpec: z.string().max(160).optional(),
+      suspensionSetup: z.string().max(160).optional(),
+      engineMods: z.string().max(240).optional(),
+      aeroBodyMods: z.string().max(240).optional(),
+      interiorAudioNotes: z.string().max(240).optional(),
+      performanceNotes: z.string().max(240).optional(),
       nickname: z.string().max(40).optional(),
       stage: z.string().max(60).optional(),
       ownershipStatus: z.string().max(40).optional(),

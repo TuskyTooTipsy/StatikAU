@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../lib/auth';
-import { getPublicServerUrl } from '../lib/env';
+import { getPublicAppUrl } from '../lib/env';
 import { findOrCreateShortLink, getProfileGarage, getShortLinkBySlug, hashVisitorKey, logAudit, mutateDb, nowIso, readDb, slugify, trackAnalyticsEvent, uniqueSlug } from '../lib/store';
 
 function resolveTargetHref(db: ReturnType<typeof readDb>, targetType: string, targetId: string) {
@@ -102,11 +102,39 @@ export default function linksRouter() {
     const allLinks = [ensureList.profileLink, ...ensureList.vehicleLinks, ...ensureList.communityLinks, ...ensureList.eventLinks].map((link) => ({
       ...link,
       targetHref: resolveTargetHref(latestDb, link.targetType, link.targetId),
-      shortUrl: `${getPublicServerUrl()}/s/${link.slug}`,
-      qrUrl: `${getPublicServerUrl()}/s/${link.slug}?src=qr`,
+      shortUrl: `${getPublicAppUrl()}/s/${link.slug}`,
+      qrUrl: `${getPublicAppUrl()}/s/${link.slug}?src=qr`,
     }));
 
     return res.json(allLinks);
+  });
+
+  router.get('/resolve/:slug', async (req, res) => {
+    const db = readDb();
+    const link = getShortLinkBySlug(db, req.params.slug);
+    if (!link) return res.status(404).json({ error: 'Short link not found' });
+    const href = resolveTargetHref(db, link.targetType, link.targetId);
+    if (!href) return res.status(404).json({ error: 'Target no longer exists' });
+
+    const isQr = req.query.src === 'qr';
+    const sessionKey = hashVisitorKey(`${req.ip}:${req.headers['user-agent'] || 'unknown'}:${isQr ? 'qr' : 'shortlink'}`);
+    mutateDb((runtime) => {
+      const target = runtime.shortLinks.find((item) => item.id === link.id);
+      if (!target) return;
+      target.clickCount += 1;
+      if (isQr) target.qrScanCount += 1;
+      target.updatedAt = nowIso();
+      trackAnalyticsEvent(runtime, {
+        actorUserId: null,
+        sessionKey,
+        source: isQr ? 'qr' : 'shortlink',
+        eventType: isQr ? 'qr_scan' : 'shortlink_click',
+        targetType: link.targetType,
+        targetId: link.targetId,
+      });
+    });
+
+    return res.json({ href, absoluteHref: `${getPublicAppUrl()}${href}` });
   });
 
   router.post('/claim', requireAuth, async (req, res) => {

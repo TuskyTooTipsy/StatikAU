@@ -4,7 +4,7 @@ import express, { Request, Router } from 'express';
 import { z } from 'zod';
 import { createHmac } from 'crypto';
 import { requireAuth } from '../lib/auth';
-import { env, getMaxUploadBytes, getPublicServerUrl } from '../lib/env';
+import { env, getMaxUploadBytes, getPublicServerUrl, getStoragePublicUrl } from '../lib/env';
 import { UPLOADS_DIR, createId, getMedia, logAudit, mutateDb, nowIso, readDb, removeMediaFile } from '../lib/store';
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -24,7 +24,7 @@ const MIME_BY_EXT: Record<string, string> = {
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 const ALL_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
-const SIGNING_SECRET = env.ADMIN_PASSWORD || 'statik-local-upload-secret';
+const SIGNING_SECRET = env.JWT_SECRET || env.ADMIN_PASSWORD || 'statik-local-upload-secret';
 
 function inferMimeType(fileName: string, incomingMimeType: string) {
   if (incomingMimeType && incomingMimeType !== 'application/octet-stream') return incomingMimeType;
@@ -52,7 +52,7 @@ function ensureUploadPermission(viewer: any, ownerType: string, ownerId: string)
   }
   if (ownerType === 'community') {
     const community = db.communities.find((item) => item.id === ownerId);
-    return !!community && (community.memberUserIds.includes(viewer.user.id) || community.ownerUserId === viewer.user.id || viewer.user.role === 'admin');
+    return !!community && (community.ownerUserId === viewer.user.id || community.adminUserIds.includes(viewer.user.id) || viewer.user.role === 'admin');
   }
   if (ownerType === 'community_post') {
     const post = db.communityPosts.find((item) => item.id === ownerId);
@@ -166,10 +166,11 @@ export default function mediaRouter() {
         if (req.body.length > upload.size) throw new Error('Uploaded file exceeds declared size');
         const ext = path.extname(upload.fileName).replace(/[^a-zA-Z0-9.]/g, '') || (upload.mimeType.startsWith('video/') ? '.mp4' : '.jpg');
         const storageKey = `${asset.id}${ext}`;
+        if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
         fs.writeFileSync(path.join(UPLOADS_DIR, storageKey), req.body);
         upload.status = 'uploaded';
         asset.storageKey = storageKey;
-        asset.url = `${resolveServerOrigin(req)}/uploads/${storageKey}`;
+        asset.url = `${getStoragePublicUrl()}/uploads/${storageKey}`;
         asset.status = 'uploaded';
         asset.updatedAt = nowIso();
       });

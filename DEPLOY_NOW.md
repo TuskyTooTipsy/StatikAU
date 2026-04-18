@@ -1,24 +1,60 @@
-# STATIK deploy-now package
+# Deploy STATIK
 
-This repo has been hardened so you can:
-- push the full repo to GitHub
-- deploy the frontend to Netlify from `netlify.toml`
-- deploy the backend to Railway from `railway.json`
-- boot the site immediately in fallback mode even if Stripe and database values are still blank
+## Railway backend
 
-## Frontend
-- Deploy target: `statik-frontend`
-- Config file: `/netlify.toml` or `/statik-frontend/netlify.toml`
-- Safe default env file: `/statik-frontend/.env`
-- Output: `dist`
+Root/base: `statik-backend`
 
-## Backend
-- Deploy target: repo root with `/railway.json`, or backend folder with `/statik-backend/railway.json`
-- Safe default env file: `/statik-backend/.env`
-- Healthcheck: `/api/health`
-- The backend now boots in launch-safe fallback mode without requiring a live database.
+Build:
+```bash
+npm install --no-audit --no-fund && npm run build
+```
 
-## Live mode later
-When you are ready to wire real services, update:
-- `statik-frontend/.env` -> `VITE_API_BASE_URL`
-- `statik-backend/.env` -> `FRONTEND_URL`, `ALLOWED_ORIGINS`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `DATABASE_URL`
+Start:
+```bash
+npm run start:railway
+```
+
+Healthcheck:
+```txt
+/api/health
+```
+
+Required env:
+```bash
+PUBLIC_APP_URL=https://statik.au
+FRONTEND_URL=https://statik.au
+ALLOWED_ORIGINS=https://statik.au,https://www.statik.au
+PUBLIC_SERVER_URL=https://YOUR-RAILWAY-BACKEND-DOMAIN
+ADMIN_EMAIL=...
+ADMIN_PASSWORD=...
+ADMIN_DISPLAY_NAME=STATIK Admin
+JWT_SECRET=...
+MAX_UPLOAD_BYTES=41943040
+STORAGE_PROVIDER=local
+UPLOADS_DIR=/data/uploads
+```
+
+Add a Railway volume mounted at `/data` while local storage is active.
+
+## Netlify frontend
+
+Base: `statik-frontend`
+
+Build:
+```bash
+npm ci --include=dev --no-audit --no-fund && npm run build
+```
+
+Publish:
+```txt
+dist
+```
+
+Required env:
+```bash
+VITE_PUBLIC_APP_URL=https://statik.au
+VITE_API_BASE_URL=https://YOUR-RAILWAY-BACKEND-DOMAIN
+VITE_MAPBOX_TOKEN=...
+```
+
+The SPA redirect is already configured. `/s/:slug` stays on statik.au, tracks through the backend resolver, then redirects inside the frontend.

@@ -61,7 +61,7 @@ function communityPayload(db: ReturnType<typeof readDb>, community: any, viewerU
     .filter(Boolean)
     .map((profile: any) => ({ ...profile, stats: profileStats(db, profile.id) }));
   const messages = db.messages
-    .filter((message) => message.communityId === community.id)
+    .filter((message) => message.communityId === community.id && !message.hidden && !message.deleted)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(-120)
     .map((message) => messagePayload(db, message));

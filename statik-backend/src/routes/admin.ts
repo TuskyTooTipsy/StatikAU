@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAdmin } from '../lib/auth';
 import { publishImportItemAsEvent, runImportSource } from '../lib/importSources';
+import { getRuntimeDiagnostics } from '../lib/env';
 import { logAudit, mutateDb, nowIso, profileStats, readDb, removeMediaFile } from '../lib/store';
 
 function buildOverview() {
@@ -40,6 +41,7 @@ function buildOverview() {
     importSources: db.eventImportSources,
     importRuns: db.eventImportRuns.slice(0, 40),
     importItems: db.eventImportItems.slice(0, 80),
+    diagnostics: getRuntimeDiagnostics(),
   };
 }
 
@@ -52,6 +54,22 @@ export default function adminRouter() {
 
   router.get('/approve-bay', requireAdmin, async (_req, res) => {
     return res.json(buildOverview().approveBay);
+  });
+
+
+  router.get('/audit-logs', requireAdmin, async (req, res) => {
+    const db = readDb();
+    const q = typeof req.query.q === 'string' ? req.query.q.toLowerCase() : '';
+    const action = typeof req.query.action === 'string' ? req.query.action.toLowerCase() : '';
+    const targetType = typeof req.query.targetType === 'string' ? req.query.targetType.toLowerCase() : '';
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : '';
+    const logs = db.auditLogs
+      .filter((log) => !q || [log.action, log.targetType, log.targetId, log.detail || ''].join(' ').toLowerCase().includes(q))
+      .filter((log) => !action || log.action.toLowerCase().includes(action))
+      .filter((log) => !targetType || log.targetType.toLowerCase() === targetType)
+      .filter((log) => !userId || log.actorUserId === userId)
+      .slice(0, 500);
+    return res.json(logs);
   });
 
   router.get('/users', requireAdmin, async (req, res) => {
@@ -121,7 +139,12 @@ export default function adminRouter() {
         const user = db.users.find((item) => item.id === req.params.userId);
         if (!user) throw new Error('User not found');
         const profile = db.profiles.find((item) => item.id === user.profileId);
-        if (parsed.data.role) user.role = parsed.data.role;
+        if (parsed.data.role) {
+          const adminCount = db.users.filter((item) => item.role === 'admin').length;
+          if (user.id === viewer.user.id && parsed.data.role !== 'admin') throw new Error('Self-demotion is blocked. Promote another admin first, then use a separate recovery path.');
+          if (user.role === 'admin' && parsed.data.role !== 'admin' && adminCount <= 1) throw new Error('Cannot remove the last admin.');
+          user.role = parsed.data.role;
+        }
         if (typeof parsed.data.isBanned === 'boolean') user.isBanned = parsed.data.isBanned;
         if (parsed.data.suspensionEndsAt !== undefined) user.suspensionEndsAt = parsed.data.suspensionEndsAt;
         if (parsed.data.moderationNote !== undefined) user.moderationNote = parsed.data.moderationNote;
@@ -150,7 +173,7 @@ export default function adminRouter() {
     const messages = db.messages
       .filter((message) => !userId || message.userId === userId)
       .filter((message) => !communityId || message.communityId === communityId)
-      .filter((message) => !q || message.text.toLowerCase().includes(q))
+      .filter((message) => !q || message.text.toLowerCase().includes(q) || (message.moderationNote || '').toLowerCase().includes(q))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, 120)
       .map((message) => ({
@@ -162,6 +185,61 @@ export default function adminRouter() {
     return res.json(messages);
   });
 
+
+
+  router.patch('/messages/:messageId', requireAdmin, async (req, res) => {
+    const schema = z.object({
+      hidden: z.boolean().optional(),
+      deleted: z.boolean().optional(),
+      moderationNote: z.string().max(500).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid message moderation payload' });
+    const viewer = (req as any).viewer;
+    try {
+      mutateDb((db) => {
+        const message = db.messages.find((item) => item.id === req.params.messageId);
+        if (!message) throw new Error('Message not found');
+        if (typeof parsed.data.hidden === 'boolean') {
+          message.hidden = parsed.data.hidden;
+          message.hiddenAt = parsed.data.hidden ? nowIso() : undefined;
+          message.hiddenByUserId = parsed.data.hidden ? viewer.user.id : undefined;
+        }
+        if (typeof parsed.data.deleted === 'boolean') {
+          message.deleted = parsed.data.deleted;
+          message.deletedAt = parsed.data.deleted ? nowIso() : undefined;
+          message.deletedByUserId = parsed.data.deleted ? viewer.user.id : undefined;
+        }
+        if (parsed.data.moderationNote !== undefined) message.moderationNote = parsed.data.moderationNote;
+        logAudit(db, viewer.user.id, 'message_moderated', 'message', message.id, JSON.stringify(parsed.data));
+      });
+    } catch (error: any) {
+      return res.status(404).json({ error: error.message || 'Message not found' });
+    }
+    return res.json({ success: true });
+  });
+
+  router.delete('/messages/:messageId', requireAdmin, async (req, res) => {
+    const viewer = (req as any).viewer;
+    try {
+      mutateDb((db) => {
+        const message = db.messages.find((item) => item.id === req.params.messageId);
+        if (!message) throw new Error('Message not found');
+        message.deleted = true;
+        message.hidden = true;
+        message.deletedAt = nowIso();
+        message.hiddenAt = nowIso();
+        message.deletedByUserId = viewer.user.id;
+        message.hiddenByUserId = viewer.user.id;
+        message.moderationNote = message.moderationNote || 'Removed from admin message moderation.';
+        logAudit(db, viewer.user.id, 'message_deleted_by_admin', 'message', message.id);
+      });
+    } catch (error: any) {
+      return res.status(404).json({ error: error.message || 'Message not found' });
+    }
+    return res.json({ success: true });
+  });
+
   router.get('/imports', requireAdmin, async (_req, res) => {
     const db = readDb();
     return res.json({
@@ -169,6 +247,29 @@ export default function adminRouter() {
       runs: db.eventImportRuns.slice(0, 50),
       items: db.eventImportItems.slice(0, 120),
     });
+  });
+
+
+  router.patch('/imports/sources/:sourceId', requireAdmin, async (req, res) => {
+    const schema = z.object({
+      name: z.string().min(2).max(80).optional(),
+      baseUrl: z.string().url().optional(),
+      enabled: z.boolean().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid import source payload' });
+    const viewer = (req as any).viewer;
+    try {
+      mutateDb((db) => {
+        const source = db.eventImportSources.find((item) => item.id === req.params.sourceId);
+        if (!source) throw new Error('Import source not found');
+        Object.assign(source, parsed.data, { updatedAt: nowIso() });
+        logAudit(db, viewer.user.id, 'import_source_updated', 'import_source', source.id, JSON.stringify(parsed.data));
+      });
+    } catch (error: any) {
+      return res.status(404).json({ error: error.message || 'Import source not found' });
+    }
+    return res.json({ success: true });
   });
 
   router.post('/imports/run', requireAdmin, async (req, res) => {
@@ -245,6 +346,9 @@ export default function adminRouter() {
       eventVisibilityMode: z.enum(['open', 'curated']).optional(),
       mapProvider: z.enum(['mapbox', 'manual']).optional(),
       featureWindowDaysDefault: z.number().min(1).max(30).optional(),
+      approvalWorkflowDefault: z.enum(['manual', 'trusted_auto_queue']).optional(),
+      sponsorEventModuleEnabled: z.boolean().optional(),
+      auditRetentionDays: z.number().min(7).max(3650).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid site settings payload' });

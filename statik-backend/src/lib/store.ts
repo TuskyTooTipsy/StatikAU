@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { env } from './env';
 
 export type Role = 'user' | 'admin';
 export type EventStatus = 'pending' | 'approved' | 'rejected' | 'revision_requested';
@@ -40,6 +41,9 @@ export interface SiteState {
   featureWindowDaysDefault?: number;
   homepageHeroMode?: 'events' | 'hybrid';
   messageModerationEnabled?: boolean;
+  approvalWorkflowDefault?: 'manual' | 'trusted_auto_queue';
+  sponsorEventModuleEnabled?: boolean;
+  auditRetentionDays?: number;
 }
 
 export interface UserRecord {
@@ -199,6 +203,13 @@ export interface CommunityMessageRecord {
   type: MessageType;
   text: string;
   eventId?: string;
+  hidden?: boolean;
+  hiddenAt?: string;
+  hiddenByUserId?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
+  moderationNote?: string;
   location?: {
     lat: number;
     lng: number;
@@ -274,6 +285,16 @@ export interface GarageVehicleRecord {
   ownershipStatus?: string;
   purposeTags?: string[];
   setupTags?: string[];
+  engineCode?: string;
+  induction?: string;
+  fuelType?: string;
+  colourWrap?: string;
+  wheelTyreSpec?: string;
+  suspensionSetup?: string;
+  engineMods?: string;
+  aeroBodyMods?: string;
+  interiorAudioNotes?: string;
+  performanceNotes?: string;
 }
 
 export interface ProfilePostRecord {
@@ -434,9 +455,9 @@ export interface RuntimeDb {
   eventImportItems: EventImportItemRecord[];
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = env.UPLOADS_DIR ? path.dirname(env.UPLOADS_DIR) : path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'runtime-db.json');
-export const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+export const UPLOADS_DIR = env.UPLOADS_DIR || path.join(DATA_DIR, 'uploads');
 
 function defaultDb(): RuntimeDb {
   const now = nowIso();
@@ -452,6 +473,9 @@ function defaultDb(): RuntimeDb {
       featureWindowDaysDefault: 3,
       homepageHeroMode: 'events',
       messageModerationEnabled: true,
+      approvalWorkflowDefault: 'manual',
+      sponsorEventModuleEnabled: true,
+      auditRetentionDays: 180,
     },
     users: [],
     sessions: [],
@@ -556,6 +580,16 @@ function normalizeVehicle(vehicle: any): GarageVehicleRecord {
     ownershipStatus: vehicle.ownershipStatus || '',
     purposeTags: Array.isArray(vehicle.purposeTags) ? vehicle.purposeTags : [],
     setupTags: Array.isArray(vehicle.setupTags) ? vehicle.setupTags : [],
+    engineCode: vehicle.engineCode || '',
+    induction: vehicle.induction || '',
+    fuelType: vehicle.fuelType || '',
+    colourWrap: vehicle.colourWrap || '',
+    wheelTyreSpec: vehicle.wheelTyreSpec || '',
+    suspensionSetup: vehicle.suspensionSetup || '',
+    engineMods: vehicle.engineMods || '',
+    aeroBodyMods: vehicle.aeroBodyMods || '',
+    interiorAudioNotes: vehicle.interiorAudioNotes || '',
+    performanceNotes: vehicle.performanceNotes || '',
   };
 }
 
@@ -602,6 +636,7 @@ function normalizeDb(raw: Partial<RuntimeDb>): RuntimeDb {
   db.communities = (db.communities || []).map(normalizeCommunity);
   db.garageVehicles = (db.garageVehicles || []).map(normalizeVehicle);
   db.communityJoinRequests = (db.communityJoinRequests || []).map((item: any) => ({ ...item, answers: Array.isArray(item.answers) ? item.answers : [] }));
+  db.messages = (db.messages || []).map((item: any) => ({ ...item, hidden: Boolean(item.hidden), deleted: Boolean(item.deleted), moderationNote: item.moderationNote || '' }));
   db.profilePosts = (db.profilePosts || []).map((item: any) => ({ ...item, mediaIds: Array.isArray(item.mediaIds) ? item.mediaIds : [], pinned: Boolean(item.pinned), featured: Boolean(item.featured), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
   db.communityPosts = (db.communityPosts || []).map((item: any) => ({ ...item, mediaIds: Array.isArray(item.mediaIds) ? item.mediaIds : [], pinned: Boolean(item.pinned), featured: Boolean(item.featured), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
   db.profileLinks = (db.profileLinks || []).map((item: any) => ({ ...item, type: item.type || 'other', updatedAt: item.updatedAt || item.createdAt || nowIso() }));
@@ -847,6 +882,34 @@ export function uniqueVisitors(events: AnalyticsEventRecord[]) {
 
 export function hashVisitorKey(input: string) {
   return crypto.createHash('sha256').update(input).digest('hex');
+}
+
+export function getProfileForUser(db: RuntimeDb, userId: string) {
+  return db.profiles.find((profile) => profile.userId === userId) || null;
+}
+
+export function canUserAccessVehicle(db: RuntimeDb, vehicleId: string, userId?: string | null, includePrivate = false) {
+  const vehicle = db.garageVehicles.find((item) => item.id === vehicleId);
+  if (!vehicle) return false;
+  const profile = db.profiles.find((item) => item.id === vehicle.profileId);
+  const user = userId ? db.users.find((item) => item.id === userId) : null;
+  if (user?.role === 'admin') return true;
+  if (profile && userId && profile.userId === userId) return true;
+  return includePrivate ? false : vehicle.visibility === 'public';
+}
+
+export function assertUserOwnsVehicle(db: RuntimeDb, vehicleId: string, userId: string) {
+  const vehicle = db.garageVehicles.find((item) => item.id === vehicleId);
+  const profile = vehicle ? db.profiles.find((item) => item.id === vehicle.profileId) : null;
+  if (!vehicle || !profile || profile.userId !== userId) throw new Error('Vehicle not found');
+  return vehicle;
+}
+
+export function assertMediaOwnerOrAdmin(db: RuntimeDb, mediaId: string, userId: string) {
+  const asset = db.mediaAssets.find((item) => item.id === mediaId && item.status !== 'deleted');
+  const user = db.users.find((item) => item.id === userId);
+  if (!asset || (asset.ownerUserId !== userId && user?.role !== 'admin')) throw new Error('Media not found');
+  return asset;
 }
 
 export function removeMediaFile(storageKey?: string) {
