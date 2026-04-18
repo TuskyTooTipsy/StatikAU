@@ -85,7 +85,7 @@ function authRouter() {
         catch (error) {
             return res.status(400).json({ error: error.message || 'Could not create account' });
         }
-        const token = (0, auth_1.createSession)(result.userId);
+        const token = (0, auth_1.createSession)(result.userId, req);
         const db = (0, store_1.readDb)();
         return res.status(201).json({
             token,
@@ -106,7 +106,11 @@ function authRouter() {
         if (!user || !(0, auth_1.verifyPassword)(parsed.data.password, user.passwordHash)) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
-        const token = (0, auth_1.createSession)(user.id);
+        if (user.isBanned)
+            return res.status(403).json({ error: 'Account banned' });
+        if (user.suspensionEndsAt && new Date(user.suspensionEndsAt).getTime() > Date.now())
+            return res.status(403).json({ error: `Account suspended until ${new Date(user.suspensionEndsAt).toLocaleString()}` });
+        const token = (0, auth_1.createSession)(user.id, req);
         return res.json({ token, ...sanitizeAuthPayload((0, store_1.readDb)(), user.id) });
     });
     router.get('/me', auth_1.requireAuth, async (req, res) => {

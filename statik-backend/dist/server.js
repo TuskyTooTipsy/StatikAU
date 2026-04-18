@@ -61,11 +61,13 @@ const media_1 = __importDefault(require("./routes/media"));
 const links_1 = __importStar(require("./routes/links"));
 const analytics_1 = __importDefault(require("./routes/analytics"));
 const reports_1 = __importDefault(require("./routes/reports"));
+const vehicleRegistry_1 = __importDefault(require("./routes/vehicleRegistry"));
 const env_1 = require("./lib/env");
 const bootstrap_1 = require("./lib/bootstrap");
 const store_1 = require("./lib/store");
 function createApp() {
     const app = (0, express_1.default)();
+    app.set('trust proxy', true);
     app.use((0, helmet_1.default)({ crossOriginResourcePolicy: false }));
     app.use((0, compression_1.default)());
     app.use((0, cors_1.default)({
@@ -120,6 +122,7 @@ function createApp() {
     app.use('/api/links', (0, links_1.default)());
     app.use('/api/analytics', (0, analytics_1.default)());
     app.use('/api/reports', (0, reports_1.default)());
+    app.use('/api/vehicle-registry', (0, vehicleRegistry_1.default)());
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not Found' });
     });

@@ -1,38 +1,31 @@
 import { createId, EventImportItemRecord, EventImportRunRecord, EventImportSourceRecord, EventRecord, nowIso, RuntimeDb, slugify, uniqueSlug } from './store';
 
-type CandidatePage = {
-  url: string;
-  titleHint?: string;
-  categoryHint?: string;
-  organizerHint?: string;
+type NormalizedCandidate = {
+  title: string;
+  sourceUrl: string;
+  location?: string;
+  date?: string;
+  time?: string;
+  category?: string;
+  description?: string;
+  imageUrl?: string;
+  organizer?: string;
+  hostHint?: string;
+  rawText?: string;
+  normalizedTags?: string[];
 };
 
 type ImportAdapter = {
   key: string;
-  discover: (source: EventImportSourceRecord) => Promise<CandidatePage[]>;
-  parse: (source: EventImportSourceRecord, page: CandidatePage) => Promise<Partial<EventImportItemRecord> & { title: string; sourceUrl: string }>;
+  run: (source: EventImportSourceRecord) => Promise<NormalizedCandidate[]>;
 };
 
-const qldSeedPages = [
-  { path: '/calendar', category: 'motorsport event' },
-  { path: '/events-at-queensland-raceway/roll-racing', category: 'drag / roll racing' },
-  { path: '/events-at-queensland-raceway/moto-ride-days', category: 'ride day / bike event' },
-  { path: '/events-at-queensland-raceway/sprints', category: 'track day' },
-  { path: '/events-at-queensland-raceway/learner-drive-nights', category: 'learner / training event' },
-  { path: '/events-at-queensland-raceway/happy-laps', category: 'motorsport event' },
-  { path: '/events-at-queensland-raceway/drifting', category: 'drift' },
-  { path: '/major-events-at-queensland-raceway/2-days-of-thunder', category: 'motorsport event' },
-  { path: '/major-events-at-queensland-raceway/drift-matsuri', category: 'drift' },
-  { path: '/major-events-at-queensland-raceway/powercruise', category: 'motorsport event' },
-  { path: '/experiences-at-qr/v8-race-experience', category: 'sponsor activation' },
-];
+const MONTHS: Record<string, string> = {
+  jan: '01', january: '01', feb: '02', february: '02', mar: '03', march: '03', apr: '04', april: '04', may: '05', jun: '06', june: '06', jul: '07', july: '07', aug: '08', august: '08', sep: '09', sept: '09', september: '09', oct: '10', october: '10', nov: '11', november: '11', dec: '12', december: '12',
+};
 
 function absoluteUrl(baseUrl: string, href: string) {
-  try {
-    return new URL(href, baseUrl).toString();
-  } catch {
-    return href;
-  }
+  try { return new URL(href, baseUrl).toString(); } catch { return href; }
 }
 
 function stripTags(value: string) {
@@ -60,34 +53,60 @@ function firstMatch(html: string, patterns: RegExp[]) {
 
 function categoryFromText(value: string, fallback = 'motorsport event') {
   const text = value.toLowerCase();
-  if (/roll|drag/.test(text)) return 'drag / roll racing';
-  if (/drift/.test(text)) return 'drift';
-  if (/moto|ride|bike|asbk|superbike/.test(text)) return 'ride day / bike event';
-  if (/sprint|track|race|qrdc|supercars|thunder/.test(text)) return 'track day';
-  if (/cruise|happy laps/.test(text)) return 'cruise';
-  if (/learner|academy|training/.test(text)) return 'learner / training event';
-  if (/show|shine|display/.test(text)) return 'show and shine';
-  if (/burnout/.test(text)) return 'motorsport event';
+  if (/roll|drag|test n tune|strip|winternationals|qdr(c|a)/.test(text)) return 'drag / roll racing';
+  if (/drift|matsuri/.test(text)) return 'drift';
+  if (/moto|ride|bike|asbk|superbike|motorcycle/.test(text)) return 'ride day / bike event';
+  if (/track day|sprint|race|qrdc|supercars|thunder|circuit|formula|trans-am|gt4|gt festival|ferrari challenge/.test(text)) return 'track day';
+  if (/cruise|happy laps|roll-up/.test(text)) return 'cruise';
+  if (/learner|academy|training|license|licence|driver academy/.test(text)) return 'learner / training event';
+  if (/show|shine|display|classic|cars and coffee/.test(text)) return 'show and shine';
+  if (/workshop|tech night|seminar/.test(text)) return 'workshop';
+  if (/charity|fundraiser/.test(text)) return 'charity event';
+  if (/media|content|shoot/.test(text)) return 'content/media event';
   return fallback;
+}
+
+function normalizeTime(value: string) {
+  const range = value.match(/(\d{1,2}(?::\d{2})?\s?(?:AM|PM|am|pm))(?:\s*[-–]\s*(\d{1,2}(?::\d{2})?\s?(?:AM|PM|am|pm)))?/);
+  if (!range) return '';
+  return range[2] ? `${range[1].toUpperCase().replace(/\s+/g, ' ')} – ${range[2].toUpperCase().replace(/\s+/g, ' ')}` : range[1].toUpperCase().replace(/\s+/g, ' ');
 }
 
 function normalizeDateLabel(value: string) {
   if (!value) return '';
-  const cleaned = value.replace(/^(NEXT:|Upcoming\.? Dates\.?)/i, '').replace(/\s+/g, ' ').trim();
+  const cleaned = decode(value).replace(/^(NEXT:|Upcoming\.? Dates\.?)/i, '').replace(/\s+/g, ' ').trim();
+  const iso = cleaned.match(/(20\d{2})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
   const numeric = cleaned.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
   if (numeric) {
     const yyyy = numeric[3].length === 2 ? `20${numeric[3]}` : numeric[3];
     return `${yyyy}-${numeric[2].padStart(2, '0')}-${numeric[1].padStart(2, '0')}`;
   }
-  const normalized = cleaned.replace(/(\d+)(st|nd|rd|th)/gi, '$1');
-  const parsed = Date.parse(normalized);
-  if (Number.isNaN(parsed)) return cleaned;
-  return new Date(parsed).toISOString().slice(0, 10);
+  const long = cleaned.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\s*(\d{1,2})(?:st|nd|rd|th)?(?:\s*[–-]\s*\d{1,2})?\s+([A-Za-z]+)\s+(20\d{2})/i);
+  if (long) {
+    const month = MONTHS[long[2].toLowerCase().slice(0, 3)] || MONTHS[long[2].toLowerCase()];
+    if (month) return `${long[3]}-${month}-${long[1].padStart(2, '0')}`;
+  }
+  const monthRange = cleaned.match(/(\d{1,2})\s*[–-]\s*(\d{1,2})\s+([A-Za-z]+)\s+(20\d{2})/i);
+  if (monthRange) {
+    const month = MONTHS[monthRange[3].toLowerCase().slice(0, 3)] || MONTHS[monthRange[3].toLowerCase()];
+    if (month) return `${monthRange[4]}-${month}-${monthRange[1].padStart(2, '0')}`;
+  }
+  const parsed = Date.parse(cleaned.replace(/(\d+)(st|nd|rd|th)/gi, '$1'));
+  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+  return '';
 }
 
-function normalizeTimeFromText(html: string) {
-  const match = html.match(/(\d{1,2}(?::\d{2})?\s?(?:AM|PM|am|pm))/);
-  return match ? match[1].toUpperCase().replace(/\s+/g, ' ') : '';
+async function fetchText(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  try {
+    const response = await fetch(url, { headers: { 'User-Agent': 'STATIK event importer (+https://statik.au)', Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' }, signal: controller.signal });
+    if (!response.ok) throw new Error(`Fetch failed ${response.status} for ${url}`);
+    return response.text();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function extractJsonLdEvents(html: string) {
@@ -99,77 +118,205 @@ function extractJsonLdEvents(html: string) {
       const parsed = JSON.parse(raw);
       const records = Array.isArray(parsed) ? parsed : parsed['@graph'] ? parsed['@graph'] : [parsed];
       records.filter((entry: any) => String(entry['@type'] || '').toLowerCase().includes('event')).forEach((entry: any) => items.push(entry));
-    } catch {
-      // ignore malformed json-ld
-    }
+    } catch { /* ignore malformed JSON-LD */ }
   }
   return items;
 }
 
-async function fetchText(url: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch(url, { headers: { 'User-Agent': 'STATIK event importer (+https://statik.au)' }, signal: controller.signal });
-    if (!response.ok) throw new Error(`Fetch failed ${response.status}`);
-    return response.text();
-  } finally {
-    clearTimeout(timeout);
-  }
+function dedupeCandidates(candidates: NormalizedCandidate[]) {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = `${candidate.sourceUrl}|${candidate.title.toLowerCase()}|${candidate.date || ''}`;
+    if (!candidate.title || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
-async function discoverQldRaceway(source: EventImportSourceRecord): Promise<CandidatePage[]> {
-  const discovered = new Map<string, CandidatePage>();
-  qldSeedPages.forEach((page) => discovered.set(absoluteUrl(source.baseUrl, page.path), { url: absoluteUrl(source.baseUrl, page.path), categoryHint: page.category, organizerHint: source.name }));
-  try {
-    const html = await fetchText(absoluteUrl(source.baseUrl, '/calendar'));
-    const hrefs = Array.from(html.matchAll(/href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi));
-    for (const [, href, labelRaw] of hrefs) {
-      const label = decode(stripTags(labelRaw));
-      const url = absoluteUrl(source.baseUrl, href);
-      if (!url.includes(source.baseUrl.replace(/\/$/, ''))) continue;
-      if (!/(event|calendar|raceway|roll|drift|sprint|ride|happy|learner|powercruise|thunder|supercars|asbk)/i.test(`${url} ${label}`)) continue;
-      discovered.set(url, { url, titleHint: label, categoryHint: categoryFromText(`${url} ${label}`), organizerHint: source.name });
-    }
-  } catch {
-    // Keep seed pages even if the client-rendered calendar cannot be fetched server-side.
-  }
-  return Array.from(discovered.values()).slice(0, 60);
-}
-
-async function parseQldRaceway(source: EventImportSourceRecord, page: CandidatePage) {
-  const html = await fetchText(page.url);
-  const jsonLd = extractJsonLdEvents(html)[0];
-  const title = decode(stripTags(jsonLd?.name || firstMatch(html, [/<h1[^>]*>(.*?)<\/h1>/i, /#\s*([^\n<]+)/, /<title>([^<]+)<\/title>/i]) || page.titleHint || 'Queensland Raceway event')).replace(/\s*\|.*$/, '').trim();
-  const description = decode(stripTags(jsonLd?.description || firstMatch(html, [/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i, /<p[^>]*>(.*?)<\/p>/i]))).slice(0, 2200);
-  const imageUrl = jsonLd?.image?.url || (Array.isArray(jsonLd?.image) ? jsonLd.image[0] : jsonLd?.image) || firstMatch(html, [/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i]);
-  const nextDateRaw = jsonLd?.startDate || firstMatch(html, [/NEXT:\s*([^<\n]+)/i, /Upcoming\.?\s*Dates\s*([^<\n]+)/i, /(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})/]);
-  const date = normalizeDateLabel(nextDateRaw);
-  const time = normalizeTimeFromText(jsonLd?.startDate || html);
-  const locationName = jsonLd?.location?.name || 'Queensland Raceway';
-  const street = jsonLd?.location?.address?.streetAddress || '133 Champions Way';
-  const locality = jsonLd?.location?.address?.addressLocality || 'Willowbank';
-  const region = jsonLd?.location?.address?.addressRegion || 'QLD';
-  const postalCode = jsonLd?.location?.address?.postalCode || '4306';
-  const location = `${locationName}, ${street}, ${locality} ${region} ${postalCode}`;
+function normalizeJsonLdEvent(source: EventImportSourceRecord, sourceUrl: string, entry: any): NormalizedCandidate | null {
+  const title = decode(stripTags(entry.name || ''));
+  if (!title) return null;
+  const locationName = entry.location?.name || 'Queensland Raceway';
+  const address = entry.location?.address;
+  const location = typeof address === 'string'
+    ? `${locationName}, ${address}`
+    : [locationName, address?.streetAddress, address?.addressLocality, address?.addressRegion, address?.postalCode].filter(Boolean).join(', ');
+  const image = Array.isArray(entry.image) ? entry.image[0] : entry.image?.url || entry.image;
   return {
     title,
-    sourceUrl: page.url,
-    location,
-    date,
-    time,
-    category: categoryFromText(`${title} ${page.url}`, page.categoryHint),
-    description,
-    imageUrl,
+    sourceUrl: entry.url || sourceUrl,
+    location: location || 'Queensland Raceway, 133 Champions Way, Willowbank QLD 4306',
+    date: normalizeDateLabel(entry.startDate || ''),
+    time: normalizeTime(entry.startDate || entry.description || ''),
+    category: categoryFromText(`${title} ${entry.description || ''}`),
+    description: decode(stripTags(entry.description || '')).slice(0, 2400),
+    imageUrl: image,
     organizer: source.name,
     hostHint: source.name,
-    rawText: stripTags(html).slice(0, 8000),
-    normalizedTags: [categoryFromText(`${title} ${page.url}`, page.categoryHint), 'qld-raceway', 'imported'].filter(Boolean),
+    rawText: JSON.stringify(entry).slice(0, 8000),
+    normalizedTags: [categoryFromText(title), 'imported', source.key],
   };
 }
 
+function extractPageLinks(baseUrl: string, html: string, matcher: RegExp) {
+  const out = new Map<string, string>();
+  const links = Array.from(html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi));
+  for (const [, href, labelRaw] of links) {
+    const label = decode(stripTags(labelRaw));
+    const url = absoluteUrl(baseUrl, href);
+    if (matcher.test(`${url} ${label}`)) out.set(url, label);
+  }
+  return Array.from(out.entries()).map(([url, label]) => ({ url, label }));
+}
+
+function parseWillowbankText(text: string, source: EventImportSourceRecord, sourceUrl: string) {
+  const candidates: NormalizedCandidate[] = [];
+  const regex = /###\s+([^#]+?)\s+(?:.*?)(Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\s*(\d{1,2}\s+[A-Za-z]+(?:\s*-\s*(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\s*\d{1,2}\s+[A-Za-z]+)?\s+20\d{2}),\s*([^,]+?),\s*Willowbank Raceway/gi;
+  let match;
+  while ((match = regex.exec(text))) {
+    const title = decode(match[1]).replace(/\s+/g, ' ').trim();
+    const dateText = match[3];
+    const around = text.slice(Math.max(0, match.index - 120), Math.min(text.length, match.index + 900));
+    candidates.push({
+      title,
+      sourceUrl,
+      location: 'Willowbank Raceway, Champions Way, Willowbank QLD 4306',
+      date: normalizeDateLabel(dateText),
+      time: normalizeTime(around),
+      category: categoryFromText(title, 'motorsport event'),
+      description: around.slice(0, 1600),
+      organizer: source.name,
+      hostHint: source.name,
+      rawText: around,
+      normalizedTags: [categoryFromText(title), 'willowbank', 'imported'],
+    });
+  }
+  return candidates;
+}
+
+function parseDriveTeamText(text: string, source: EventImportSourceRecord, sourceUrl: string) {
+  const candidates: NormalizedCandidate[] = [];
+  const regex = /###\s*(2026\s+Track Day\s+-\s+Queensland Raceway)[\s\S]{0,120}?(\d{1,2}\/\d{1,2}\/20\d{2})\s+([\d:apmAPM\s.-]+)[\s\S]{0,350}?(Queensland Raceway)/g;
+  let match;
+  while ((match = regex.exec(text))) {
+    const around = text.slice(Math.max(0, match.index - 80), Math.min(text.length, match.index + 900));
+    candidates.push({
+      title: match[1],
+      sourceUrl,
+      location: 'Queensland Raceway, 133 Champions Way, Willowbank QLD 4306',
+      date: normalizeDateLabel(match[2]),
+      time: normalizeTime(match[3]),
+      category: 'track day',
+      description: around.slice(0, 1800),
+      organizer: source.name,
+      hostHint: 'The Drive Team / Queensland Raceway',
+      rawText: around,
+      normalizedTags: ['track day', 'queensland-raceway', 'fallback-source', 'imported'],
+    });
+  }
+  return candidates;
+}
+
+function parseRacingCalendarText(text: string, source: EventImportSourceRecord, sourceUrl: string) {
+  const candidates: NormalizedCandidate[] = [];
+  const regex = /(\d{1,2}(?:\s*[–-]\s*\d{1,2})?\s+[A-Za-z]+\s+20\d{2}|[A-Za-z]+\s+20\d{4})\s+\|\s+(.+?)(?=(?:\d{1,2}(?:\s*[–-]\s*\d{1,2})?\s+[A-Za-z]+\s+20\d{2}|[A-Za-z]+\s+20\d{4})\s+\||$)/g;
+  let match;
+  while ((match = regex.exec(text))) {
+    const dateText = match[1];
+    const raw = decode(match[2]).replace(/Image:.*? /g, ' ').replace(/\s+/g, ' ').trim();
+    const title = raw.split(' Provisional ')[0].split(' NC ')[0].slice(0, 140).trim() || 'Queensland Raceway event';
+    if (!normalizeDateLabel(dateText)) continue;
+    candidates.push({
+      title,
+      sourceUrl,
+      location: 'Queensland Raceway, 133 Champions Way, Willowbank QLD 4306',
+      date: normalizeDateLabel(dateText),
+      time: 'TBC',
+      category: categoryFromText(title, 'motorsport event'),
+      description: raw.slice(0, 2000),
+      organizer: source.name,
+      hostHint: 'Queensland Raceway / RacingCalendar',
+      rawText: `${dateText} | ${raw}`.slice(0, 4000),
+      normalizedTags: [categoryFromText(title), 'queensland-raceway', 'racingcalendar', 'imported'],
+    });
+  }
+  return candidates;
+}
+
+async function parseSinglePage(source: EventImportSourceRecord, url: string): Promise<NormalizedCandidate[]> {
+  const html = await fetchText(url);
+  const text = stripTags(html);
+  const jsonLd = extractJsonLdEvents(html).map((entry) => normalizeJsonLdEvent(source, url, entry)).filter(Boolean) as NormalizedCandidate[];
+  if (jsonLd.length) return jsonLd;
+  if (url.includes('willowbank')) return parseWillowbankText(text, source, url);
+  if (url.includes('thedriveteam')) return parseDriveTeamText(text, source, url);
+  if (url.includes('racingcalendar')) return parseRacingCalendarText(text, source, url);
+
+  const title = firstMatch(html, [/<h1[^>]*>(.*?)<\/h1>/i, /<title>([^<]+)<\/title>/i]).replace(/\s*\|.*$/, '').trim();
+  const date = normalizeDateLabel(firstMatch(html, [/NEXT:\s*([^<\n]+)/i, /Upcoming\.?\s*Dates\.?\s*([^<\n]+)/i, /(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})/, /((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\s*\d{1,2}\s+[A-Za-z]+\s+20\d{2})/i]));
+  if (!title || !date) return [];
+  return [{
+    title,
+    sourceUrl: url,
+    location: source.key.includes('qld') ? 'Queensland Raceway, 133 Champions Way, Willowbank QLD 4306' : '',
+    date,
+    time: normalizeTime(text) || 'TBC',
+    category: categoryFromText(title),
+    description: firstMatch(html, [/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i, /<p[^>]*>(.*?)<\/p>/i]).slice(0, 2200),
+    organizer: source.name,
+    hostHint: source.name,
+    rawText: text.slice(0, 8000),
+    normalizedTags: [categoryFromText(title), source.key, 'imported'],
+  }];
+}
+
+async function runQueenslandRaceway(source: EventImportSourceRecord) {
+  const candidates: NormalizedCandidate[] = [];
+  const calendarUrl = absoluteUrl(source.baseUrl, '/calendar');
+  try {
+    const calendarHtml = await fetchText(calendarUrl);
+    const calendarText = stripTags(calendarHtml);
+    extractJsonLdEvents(calendarHtml).forEach((entry) => {
+      const candidate = normalizeJsonLdEvent(source, calendarUrl, entry);
+      if (candidate) candidates.push(candidate);
+    });
+    const direct = parseRacingCalendarText(calendarText, { ...source, name: 'Queensland Raceway' }, calendarUrl).filter((item) => item.date);
+    candidates.push(...direct);
+    const links = extractPageLinks(source.baseUrl, calendarHtml, /(event|calendar|raceway|roll|drift|sprint|ride|happy|learner|powercruise|thunder|supercars|asbk)/i).slice(0, 35);
+    for (const link of links) candidates.push(...await parseSinglePage(source, link.url));
+  } catch (error: any) {
+    candidates.push({ title: 'Queensland Raceway direct calendar import requires fallback review', sourceUrl: calendarUrl, location: 'Queensland Raceway, 133 Champions Way, Willowbank QLD 4306', date: '', time: '', category: 'motorsport event', description: `Direct calendar fetch failed: ${error.message}`, organizer: source.name, hostHint: source.name, rawText: error.message, normalizedTags: ['import-error', 'qld-raceway'] });
+  }
+
+  const datedDirect = candidates.filter((candidate) => candidate.date && !candidate.normalizedTags?.includes('import-error'));
+  if (datedDirect.length) return dedupeCandidates(datedDirect);
+
+  // Fallback path is explicit: no fake QR events. These are real venue-relevant external pages staged with source URLs.
+  const fallbackSources: Array<[string, string, string]> = [
+    ['Queensland Raceway via RacingCalendar', 'https://racingcalendar.net/circuit/queensland-raceway/2026', 'racingcalendar'],
+    ['Queensland Raceway track days via The Drive Team', 'https://thedriveteam.com.au/events/', 'thedriveteam'],
+    ['Queensland Raceway location via The Drive Team', 'https://thedriveteam.com.au/locations/queensland-raceway/', 'thedriveteam'],
+  ];
+  for (const [name, url, key] of fallbackSources) {
+    try {
+      const sourceLike = { ...source, key, name, baseUrl: new URL(url).origin };
+      candidates.push(...await parseSinglePage(sourceLike, url));
+    } catch (error: any) {
+      candidates.push({ title: `${name} fallback failed`, sourceUrl: url, location: '', date: '', time: '', category: 'motorsport event', description: error.message, organizer: name, hostHint: name, rawText: error.message, normalizedTags: ['import-error', 'fallback-source'] });
+    }
+  }
+  return dedupeCandidates(candidates.filter((candidate) => candidate.date && !candidate.normalizedTags?.includes('import-error')));
+}
+
+async function runGenericSource(source: EventImportSourceRecord) {
+  return dedupeCandidates(await parseSinglePage(source, source.baseUrl));
+}
+
 const adapters: ImportAdapter[] = [
-  { key: 'qldraceway', discover: discoverQldRaceway, parse: parseQldRaceway },
+  { key: 'qldraceway', run: runQueenslandRaceway },
+  { key: 'racingcalendar_qldraceway', run: runGenericSource },
+  { key: 'willowbank', run: runGenericSource },
+  { key: 'thedriveteam', run: runGenericSource },
 ];
 
 function findDuplicate(db: RuntimeDb, candidate: { title: string; date?: string; sourceUrl: string }) {
@@ -189,13 +336,19 @@ async function runAdapter(db: RuntimeDb, source: EventImportSourceRecord, adapte
   };
   db.eventImportRuns.unshift(run);
 
-  const candidates = await adapter.discover(source);
+  let candidates: NormalizedCandidate[] = [];
+  try {
+    candidates = await adapter.run(source);
+  } catch (error: any) {
+    run.errorCount += 1;
+    run.note = error.message || 'Import source failed before parsing records';
+  }
+
   for (const candidate of candidates) {
     try {
-      const parsed = await adapter.parse(source, candidate);
-      const normalizedTitle = parsed.title.trim();
-      const existing = db.eventImportItems.find((item) => item.sourceUrl === parsed.sourceUrl && item.date === (parsed.date || '') && item.title.toLowerCase() === normalizedTitle.toLowerCase());
-      const duplicateEvent = findDuplicate(db, { title: normalizedTitle, date: parsed.date, sourceUrl: parsed.sourceUrl });
+      const normalizedTitle = candidate.title.trim();
+      const existing = db.eventImportItems.find((item) => item.sourceUrl === candidate.sourceUrl && item.date === (candidate.date || '') && item.title.toLowerCase() === normalizedTitle.toLowerCase());
+      const duplicateEvent = findDuplicate(db, { title: normalizedTitle, date: candidate.date, sourceUrl: candidate.sourceUrl });
       if (existing) {
         run.duplicateCount += 1;
         continue;
@@ -205,19 +358,19 @@ async function runAdapter(db: RuntimeDb, source: EventImportSourceRecord, adapte
         sourceId: source.id,
         runId: run.id,
         sourceKey: source.key,
-        sourceName: source.name,
-        sourceUrl: parsed.sourceUrl,
+        sourceName: candidate.organizer || source.name,
+        sourceUrl: candidate.sourceUrl,
         title: normalizedTitle,
-        location: parsed.location || '',
-        date: parsed.date || '',
-        time: parsed.time || '',
-        category: parsed.category || categoryFromText(normalizedTitle),
-        description: parsed.description || '',
-        imageUrl: parsed.imageUrl,
-        organizer: parsed.organizer || source.name,
-        hostHint: parsed.hostHint || source.name,
-        rawText: parsed.rawText || '',
-        normalizedTags: parsed.normalizedTags || ['imported'],
+        location: candidate.location || '',
+        date: candidate.date || '',
+        time: candidate.time || 'TBC',
+        category: candidate.category || categoryFromText(normalizedTitle),
+        description: candidate.description || '',
+        imageUrl: candidate.imageUrl,
+        organizer: candidate.organizer || source.name,
+        hostHint: candidate.hostHint || source.name,
+        rawText: candidate.rawText || '',
+        normalizedTags: candidate.normalizedTags || ['imported'],
         status: duplicateEvent ? 'archived' : 'pending',
         createdAt: nowIso(),
         updatedAt: nowIso(),
@@ -229,33 +382,17 @@ async function runAdapter(db: RuntimeDb, source: EventImportSourceRecord, adapte
       else run.importedCount += 1;
     } catch (error: any) {
       run.errorCount += 1;
-      db.eventImportItems.unshift({
-        id: createId('impitem'),
-        sourceId: source.id,
-        runId: run.id,
-        sourceKey: source.key,
-        sourceName: source.name,
-        sourceUrl: candidate.url,
-        title: candidate.titleHint || candidate.url.split('/').pop()?.replace(/-/g, ' ') || 'Import error',
-        location: '',
-        date: '',
-        time: '',
-        category: candidate.categoryHint || 'motorsport event',
-        description: '',
-        organizer: candidate.organizerHint || source.name,
-        rawText: '',
-        normalizedTags: ['import-error'],
-        status: 'archived',
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-        adminNote: error.message || 'Import failed',
-      });
     }
   }
 
   run.finishedAt = nowIso();
-  run.status = run.errorCount > 0 && run.importedCount > 0 ? 'partial' : run.errorCount > 0 ? 'failed' : 'success';
-  run.note = `${candidates.length} candidate pages checked`;
+  if (run.importedCount === 0 && run.duplicateCount === 0 && run.errorCount === 0) {
+    run.status = 'partial';
+    run.note = 'Source fetched but no dated event records were found. Check raw site behavior or run fallback sources.';
+  } else {
+    run.status = run.errorCount > 0 && run.importedCount > 0 ? 'partial' : run.errorCount > 0 ? 'failed' : 'success';
+    run.note = run.note || `${candidates.length} parsed candidate records checked`;
+  }
   source.lastRunAt = run.finishedAt;
   source.lastRunStatus = run.status;
   source.lastRunMessage = `${run.importedCount} pending, ${run.duplicateCount} duplicates, ${run.errorCount} errors`;

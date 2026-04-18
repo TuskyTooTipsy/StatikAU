@@ -28,6 +28,8 @@ function buildOverview() {
     communities: db.communities.map((community) => ({ ...community, memberCount: community.memberUserIds.length })),
     reports: db.reports.slice(0, 120),
     media: db.mediaAssets.filter((asset) => asset.status === 'uploaded').slice(0, 120),
+    vehicles: db.garageVehicles.slice(0, 160),
+    shortLinks: db.shortLinks.slice(0, 160),
     auditLogs: db.auditLogs.slice(0, 120),
     approveBay: {
       events: db.events.filter((event) => event.approvalStatus === 'pending' || event.approvalStatus === 'revision_requested').slice(0, 40),
@@ -344,7 +346,7 @@ export default function adminRouter() {
       homepageHeroMode: z.enum(['events', 'hybrid']).optional(),
       messageModerationEnabled: z.boolean().optional(),
       eventVisibilityMode: z.enum(['open', 'curated']).optional(),
-      mapProvider: z.enum(['mapbox', 'manual']).optional(),
+      mapProvider: z.enum(['google', 'mapbox', 'manual']).optional(),
       featureWindowDaysDefault: z.number().min(1).max(30).optional(),
       approvalWorkflowDefault: z.enum(['manual', 'trusted_auto_queue']).optional(),
       sponsorEventModuleEnabled: z.boolean().optional(),

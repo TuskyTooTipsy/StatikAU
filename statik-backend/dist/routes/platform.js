@@ -27,6 +27,14 @@ function mapCommunityPreview(community, viewerUserId) {
         isMember: viewerUserId ? community.memberUserIds.includes(viewerUserId) : false,
     };
 }
+function eventCounts(db, eventId) {
+    const responses = db.eventResponses.filter((response) => response.eventId === eventId);
+    return {
+        attending: responses.filter((item) => item.status === 'attending').length,
+        interested: responses.filter((item) => item.status === 'interested').length,
+        maybe: responses.filter((item) => item.status === 'maybe').length,
+    };
+}
 function platformRouter() {
     const router = (0, express_1.Router)();
     router.get('/public', async (_req, res) => {
@@ -40,35 +48,39 @@ function platformRouter() {
         })
             .slice(0, 6)
             .map((profile) => mapProfileCard(db, profile));
-        const featuredEvents = db.events
-            .filter((event) => event.approvalStatus === 'approved' && event.featured)
+        const approvedEvents = db.events.filter((event) => event.approvalStatus === 'approved');
+        const featuredEvents = approvedEvents
+            .filter((event) => event.featured || event.sponsored || event.sourceType === 'statik_hosted')
             .sort((a, b) => a.date.localeCompare(b.date))
             .slice(0, 6)
-            .map((event) => {
-            const responses = db.eventResponses.filter((response) => response.eventId === event.id);
-            return {
-                ...event,
-                counts: {
-                    attending: responses.filter((item) => item.status === 'attending').length,
-                    interested: responses.filter((item) => item.status === 'interested').length,
-                    maybe: responses.filter((item) => item.status === 'maybe').length,
-                },
-            };
-        });
+            .map((event) => ({ ...event, counts: eventCounts(db, event.id), media: (0, store_1.getMediaList)(db, event.mediaIds || []) }));
         const publicCommunities = db.communities
             .filter((community) => community.visibility === 'public' && community.discoverable)
             .sort((a, b) => b.memberUserIds.length - a.memberUserIds.length)
             .slice(0, 5)
             .map((community) => mapCommunityPreview(community));
+        const upcoming = approvedEvents
+            .filter((event) => !event.date || event.date >= new Date().toISOString().slice(0, 10))
+            .sort((a, b) => a.date.localeCompare(b.date));
+        const eventCategories = Object.entries(upcoming.reduce((acc, event) => {
+            acc[event.category] = (acc[event.category] || 0) + 1;
+            return acc;
+        }, {}))
+            .map(([label, count]) => ({ label, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 8);
         return res.json({
             site: db.site,
             featuredProfiles,
             featuredEvents,
+            flagshipEvents: upcoming.filter((event) => event.featured || event.sponsored).slice(0, 4).map((event) => ({ ...event, counts: eventCounts(db, event.id), media: (0, store_1.getMediaList)(db, event.mediaIds || []) })),
+            upcomingEvents: upcoming.slice(0, 8).map((event) => ({ ...event, counts: eventCounts(db, event.id), media: (0, store_1.getMediaList)(db, event.mediaIds || []) })),
+            eventCategories,
             publicCommunities,
             counts: {
-                members: db.users.length,
-                approvedEvents: db.events.filter((event) => event.approvalStatus === 'approved').length,
+                approvedEvents: approvedEvents.length,
                 publicCommunities: db.communities.filter((community) => community.visibility === 'public' && community.discoverable).length,
+                sponsoredEvents: approvedEvents.filter((event) => event.sponsored).length,
             },
             foundingPhase: db.users.length < 25,
             needsAdminBootstrap: db.users.length === 0,

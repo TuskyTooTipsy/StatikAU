@@ -37,6 +37,7 @@ function redirectRouter() {
         const href = resolveTargetHref(db, link.targetType, link.targetId);
         if (!href)
             return res.status(404).json({ error: 'Target no longer exists' });
+        const sessionKey = (0, store_1.hashVisitorKey)(`${req.ip}:${req.headers['user-agent'] || 'unknown'}:${req.query.src === 'qr' ? 'qr' : 'shortlink'}`);
         (0, store_1.mutateDb)((runtime) => {
             const target = runtime.shortLinks.find((item) => item.id === link.id);
             if (!target)
@@ -48,7 +49,7 @@ function redirectRouter() {
             target.updatedAt = (0, store_1.nowIso)();
             (0, store_1.trackAnalyticsEvent)(runtime, {
                 actorUserId: null,
-                sessionKey: `${req.ip}:${req.headers['user-agent'] || 'unknown'}`,
+                sessionKey,
                 source: isQr ? 'qr' : 'shortlink',
                 eventType: isQr ? 'qr_scan' : 'shortlink_click',
                 targetType: link.targetType,
@@ -98,10 +99,39 @@ function linksRouter() {
         const allLinks = [ensureList.profileLink, ...ensureList.vehicleLinks, ...ensureList.communityLinks, ...ensureList.eventLinks].map((link) => ({
             ...link,
             targetHref: resolveTargetHref(latestDb, link.targetType, link.targetId),
-            shortUrl: `${(0, env_1.getPublicServerUrl)()}/s/${link.slug}`,
-            qrUrl: `${(0, env_1.getPublicServerUrl)()}/s/${link.slug}?src=qr`,
+            shortUrl: `${(0, env_1.getPublicAppUrl)()}/s/${link.slug}`,
+            qrUrl: `${(0, env_1.getPublicAppUrl)()}/s/${link.slug}?src=qr`,
         }));
         return res.json(allLinks);
+    });
+    router.get('/resolve/:slug', async (req, res) => {
+        const db = (0, store_1.readDb)();
+        const link = (0, store_1.getShortLinkBySlug)(db, req.params.slug);
+        if (!link)
+            return res.status(404).json({ error: 'Short link not found' });
+        const href = resolveTargetHref(db, link.targetType, link.targetId);
+        if (!href)
+            return res.status(404).json({ error: 'Target no longer exists' });
+        const isQr = req.query.src === 'qr';
+        const sessionKey = (0, store_1.hashVisitorKey)(`${req.ip}:${req.headers['user-agent'] || 'unknown'}:${isQr ? 'qr' : 'shortlink'}`);
+        (0, store_1.mutateDb)((runtime) => {
+            const target = runtime.shortLinks.find((item) => item.id === link.id);
+            if (!target)
+                return;
+            target.clickCount += 1;
+            if (isQr)
+                target.qrScanCount += 1;
+            target.updatedAt = (0, store_1.nowIso)();
+            (0, store_1.trackAnalyticsEvent)(runtime, {
+                actorUserId: null,
+                sessionKey,
+                source: isQr ? 'qr' : 'shortlink',
+                eventType: isQr ? 'qr_scan' : 'shortlink_click',
+                targetType: link.targetType,
+                targetId: link.targetId,
+            });
+        });
+        return res.json({ href, absoluteHref: `${(0, env_1.getPublicAppUrl)()}${href}` });
     });
     router.post('/claim', auth_1.requireAuth, async (req, res) => {
         const schema = zod_1.z.object({

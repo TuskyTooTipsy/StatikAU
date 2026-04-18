@@ -32,20 +32,35 @@ exports.dayKey = dayKey;
 exports.aggregateCountByDay = aggregateCountByDay;
 exports.uniqueVisitors = uniqueVisitors;
 exports.hashVisitorKey = hashVisitorKey;
+exports.getProfileForUser = getProfileForUser;
+exports.canUserAccessVehicle = canUserAccessVehicle;
+exports.assertUserOwnsVehicle = assertUserOwnsVehicle;
+exports.assertMediaOwnerOrAdmin = assertMediaOwnerOrAdmin;
 exports.removeMediaFile = removeMediaFile;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = __importDefault(require("crypto"));
-const DATA_DIR = path_1.default.join(process.cwd(), 'data');
+const env_1 = require("./env");
+const DATA_DIR = env_1.env.UPLOADS_DIR ? path_1.default.dirname(env_1.env.UPLOADS_DIR) : path_1.default.join(process.cwd(), 'data');
 const DB_PATH = path_1.default.join(DATA_DIR, 'runtime-db.json');
-exports.UPLOADS_DIR = path_1.default.join(DATA_DIR, 'uploads');
+exports.UPLOADS_DIR = env_1.env.UPLOADS_DIR || path_1.default.join(DATA_DIR, 'uploads');
 function defaultDb() {
+    const now = nowIso();
     return {
         site: {
             shopLocked: true,
             maintenanceMode: false,
             registrationOpen: true,
             brandTagline: 'Private scene network for people who actually show up.',
+            eventVisibilityMode: 'curated',
+            mapProvider: 'google',
+            importsEnabled: true,
+            featureWindowDaysDefault: 3,
+            homepageHeroMode: 'events',
+            messageModerationEnabled: true,
+            approvalWorkflowDefault: 'manual',
+            sponsorEventModuleEnabled: true,
+            auditRetentionDays: 180,
         },
         users: [],
         sessions: [],
@@ -66,6 +81,46 @@ function defaultDb() {
         analyticsEvents: [],
         reports: [],
         auditLogs: [],
+        eventImportSources: [
+            {
+                id: 'source_qldraceway',
+                key: 'qldraceway',
+                name: 'Queensland Raceway',
+                baseUrl: 'https://www.qldraceways.com.au',
+                enabled: true,
+                createdAt: now,
+                updatedAt: now,
+            },
+            {
+                id: 'source_racingcalendar_qldraceway',
+                key: 'racingcalendar_qldraceway',
+                name: 'RacingCalendar Queensland Raceway',
+                baseUrl: 'https://racingcalendar.net/circuit/queensland-raceway/2026',
+                enabled: true,
+                createdAt: now,
+                updatedAt: now,
+            },
+            {
+                id: 'source_willowbank',
+                key: 'willowbank',
+                name: 'Willowbank Raceway',
+                baseUrl: 'https://www.willowbank-raceway.com.au/events/',
+                enabled: true,
+                createdAt: now,
+                updatedAt: now,
+            },
+            {
+                id: 'source_thedriveteam',
+                key: 'thedriveteam',
+                name: 'The Drive Team Track Days',
+                baseUrl: 'https://thedriveteam.com.au/events/',
+                enabled: true,
+                createdAt: now,
+                updatedAt: now,
+            },
+        ],
+        eventImportRuns: [],
+        eventImportItems: [],
     };
 }
 function ensureDirs() {
@@ -127,14 +182,70 @@ function normalizeVehicle(vehicle) {
         featured: Boolean(vehicle.featured),
         createdAt: now,
         updatedAt: vehicle.updatedAt || now,
+        generation: vehicle.generation || '',
+        specialEdition: vehicle.specialEdition || '',
+        bodyStyle: vehicle.bodyStyle || '',
+        drivetrain: vehicle.drivetrain || '',
+        engineFamily: vehicle.engineFamily || '',
+        transmission: vehicle.transmission || '',
+        ownershipStatus: vehicle.ownershipStatus || '',
+        purposeTags: Array.isArray(vehicle.purposeTags) ? vehicle.purposeTags : [],
+        setupTags: Array.isArray(vehicle.setupTags) ? vehicle.setupTags : [],
+        engineCode: vehicle.engineCode || '',
+        induction: vehicle.induction || '',
+        fuelType: vehicle.fuelType || '',
+        colourWrap: vehicle.colourWrap || '',
+        wheelTyreSpec: vehicle.wheelTyreSpec || '',
+        suspensionSetup: vehicle.suspensionSetup || '',
+        engineMods: vehicle.engineMods || '',
+        aeroBodyMods: vehicle.aeroBodyMods || '',
+        interiorAudioNotes: vehicle.interiorAudioNotes || '',
+        performanceNotes: vehicle.performanceNotes || '',
+    };
+}
+function normalizeEvent(event) {
+    const createdAt = event.createdAt || nowIso();
+    return {
+        ...event,
+        featured: Boolean(event.featured),
+        approvalStatus: ['pending', 'approved', 'rejected', 'revision_requested'].includes(event.approvalStatus) ? event.approvalStatus : 'pending',
+        sourceType: event.sourceType || 'user_submission',
+        sourceName: event.sourceName || '',
+        sourceUrl: event.sourceUrl || '',
+        locationDetails: event.locationDetails && typeof event.locationDetails === 'object' ? event.locationDetails : null,
+        tags: Array.isArray(event.tags) ? event.tags : [],
+        mediaIds: Array.isArray(event.mediaIds) ? event.mediaIds : [],
+        sponsored: Boolean(event.sponsored),
+        sponsorName: event.sponsorName || '',
+        venueType: event.venueType || 'other',
+        entryType: event.entryType || 'mixed',
+        pricingType: event.pricingType || 'other',
+        vehicleFocus: Array.isArray(event.vehicleFocus) ? event.vehicleFocus : [],
+        visibilityLabel: event.visibilityLabel || '',
+        spectatorFriendly: typeof event.spectatorFriendly === 'boolean' ? event.spectatorFriendly : undefined,
+        familyFriendly: typeof event.familyFriendly === 'boolean' ? event.familyFriendly : undefined,
+        recurring: typeof event.recurring === 'boolean' ? event.recurring : false,
+        indoorOutdoor: event.indoorOutdoor || 'unknown',
+        submittedByEmail: event.submittedByEmail || '',
+        submittedByName: event.submittedByName || '',
+        hostLinks: Array.isArray(event.hostLinks) ? event.hostLinks : [],
+        adminNotes: Array.isArray(event.adminNotes) ? event.adminNotes : [],
+        statusHistory: Array.isArray(event.statusHistory) ? event.statusHistory : [],
+        createdAt,
+        updatedAt: event.updatedAt || createdAt,
     };
 }
 function normalizeDb(raw) {
     const db = { ...defaultDb(), ...raw };
+    db.site = { ...defaultDb().site, ...(db.site || {}) };
+    db.users = (db.users || []).map((item) => ({ ...item, isBanned: Boolean(item.isBanned), suspensionEndsAt: item.suspensionEndsAt || null, moderationNote: item.moderationNote || '', featureEndsAt: item.featureEndsAt || null }));
+    db.sessions = (db.sessions || []).map((item) => ({ ...item, lastSeenAt: item.lastSeenAt || item.createdAt || nowIso(), ip: item.ip || '', userAgent: item.userAgent || '' }));
     db.profiles = (db.profiles || []).map(normalizeProfile);
+    db.events = (db.events || []).map(normalizeEvent);
     db.communities = (db.communities || []).map(normalizeCommunity);
     db.garageVehicles = (db.garageVehicles || []).map(normalizeVehicle);
     db.communityJoinRequests = (db.communityJoinRequests || []).map((item) => ({ ...item, answers: Array.isArray(item.answers) ? item.answers : [] }));
+    db.messages = (db.messages || []).map((item) => ({ ...item, hidden: Boolean(item.hidden), deleted: Boolean(item.deleted), moderationNote: item.moderationNote || '' }));
     db.profilePosts = (db.profilePosts || []).map((item) => ({ ...item, mediaIds: Array.isArray(item.mediaIds) ? item.mediaIds : [], pinned: Boolean(item.pinned), featured: Boolean(item.featured), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
     db.communityPosts = (db.communityPosts || []).map((item) => ({ ...item, mediaIds: Array.isArray(item.mediaIds) ? item.mediaIds : [], pinned: Boolean(item.pinned), featured: Boolean(item.featured), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
     db.profileLinks = (db.profileLinks || []).map((item) => ({ ...item, type: item.type || 'other', updatedAt: item.updatedAt || item.createdAt || nowIso() }));
@@ -144,6 +255,16 @@ function normalizeDb(raw) {
     db.pendingUploads = (db.pendingUploads || []).map((item) => ({ ...item, status: item.status || 'pending' }));
     db.reports = db.reports || [];
     db.auditLogs = db.auditLogs || [];
+    {
+        const defaults = defaultDb().eventImportSources;
+        const existing = db.eventImportSources || [];
+        const byKey = new Map();
+        defaults.forEach((source) => byKey.set(source.key, source));
+        existing.forEach((source) => byKey.set(source.key, { ...byKey.get(source.key), ...source }));
+        db.eventImportSources = Array.from(byKey.values()).map((item) => ({ ...item, enabled: item.enabled !== false, createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+    }
+    db.eventImportRuns = (db.eventImportRuns || []).map((item) => ({ ...item, importedCount: Number(item.importedCount || 0), duplicateCount: Number(item.duplicateCount || 0), errorCount: Number(item.errorCount || 0) }));
+    db.eventImportItems = (db.eventImportItems || []).map((item) => ({ ...item, normalizedTags: Array.isArray(item.normalizedTags) ? item.normalizedTags : [], status: item.status || 'pending', createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
     return db;
 }
 function readDb() {
@@ -229,7 +350,7 @@ function profileStats(db, profileId) {
 function canManageCommunity(community, userId) {
     return community.ownerUserId === userId || community.adminUserIds.includes(userId);
 }
-function logAudit(db, actorUserId, action, targetType, targetId, detail) {
+function logAudit(db, actorUserId, action, targetType, targetId, detail, undoAction) {
     db.auditLogs.unshift({
         id: createId('audit'),
         actorUserId,
@@ -238,8 +359,9 @@ function logAudit(db, actorUserId, action, targetType, targetId, detail) {
         targetId,
         createdAt: nowIso(),
         detail,
+        undoAction,
     });
-    db.auditLogs = db.auditLogs.slice(0, 300);
+    db.auditLogs = db.auditLogs.slice(0, 1000);
 }
 function getMedia(db, mediaId) {
     if (!mediaId)
@@ -355,6 +477,35 @@ function uniqueVisitors(events) {
 }
 function hashVisitorKey(input) {
     return crypto_1.default.createHash('sha256').update(input).digest('hex');
+}
+function getProfileForUser(db, userId) {
+    return db.profiles.find((profile) => profile.userId === userId) || null;
+}
+function canUserAccessVehicle(db, vehicleId, userId, includePrivate = false) {
+    const vehicle = db.garageVehicles.find((item) => item.id === vehicleId);
+    if (!vehicle)
+        return false;
+    const profile = db.profiles.find((item) => item.id === vehicle.profileId);
+    const user = userId ? db.users.find((item) => item.id === userId) : null;
+    if (user?.role === 'admin')
+        return true;
+    if (profile && userId && profile.userId === userId)
+        return true;
+    return includePrivate ? false : vehicle.visibility === 'public';
+}
+function assertUserOwnsVehicle(db, vehicleId, userId) {
+    const vehicle = db.garageVehicles.find((item) => item.id === vehicleId);
+    const profile = vehicle ? db.profiles.find((item) => item.id === vehicle.profileId) : null;
+    if (!vehicle || !profile || profile.userId !== userId)
+        throw new Error('Vehicle not found');
+    return vehicle;
+}
+function assertMediaOwnerOrAdmin(db, mediaId, userId) {
+    const asset = db.mediaAssets.find((item) => item.id === mediaId && item.status !== 'deleted');
+    const user = db.users.find((item) => item.id === userId);
+    if (!asset || (asset.ownerUserId !== userId && user?.role !== 'admin'))
+        throw new Error('Media not found');
+    return asset;
 }
 function removeMediaFile(storageKey) {
     if (!storageKey)

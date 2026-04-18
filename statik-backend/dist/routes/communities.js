@@ -30,6 +30,7 @@ function communityPreview(db, community, viewerUserId) {
         region: community.region,
         tags: community.tags,
         rules: community.rules,
+        applicationQuestions: community.applicationQuestions,
         memberCount: community.memberUserIds.length,
         isMember: viewerUserId ? community.memberUserIds.includes(viewerUserId) : false,
         isAdmin: viewerUserId ? (0, store_1.canManageCommunity)(community, viewerUserId) : false,
@@ -46,7 +47,7 @@ function communityPayload(db, community, viewerUserId) {
         .filter(Boolean)
         .map((profile) => ({ ...profile, stats: (0, store_1.profileStats)(db, profile.id) }));
     const messages = db.messages
-        .filter((message) => message.communityId === community.id)
+        .filter((message) => message.communityId === community.id && !message.hidden && !message.deleted)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
         .slice(-120)
         .map((message) => messagePayload(db, message));
@@ -63,6 +64,12 @@ function communityPayload(db, community, viewerUserId) {
         ...vehicle,
         owner: db.profiles.find((item) => item.id === vehicle.profileId) || null,
     }));
+    const memberVehicles = db.garageVehicles
+        .filter((vehicle) => vehicle.visibility !== 'private' && (vehicle.linkedCommunityIds || []).includes(community.id))
+        .map((vehicle) => ({
+        ...vehicle,
+        owner: db.profiles.find((item) => item.id === vehicle.profileId) || null,
+    }));
     return {
         ...communityPreview(db, community, viewerUserId),
         owner,
@@ -75,6 +82,7 @@ function communityPayload(db, community, viewerUserId) {
         hostedEvents,
         featuredMembers,
         featuredVehicles,
+        memberVehicles,
         applicationQuestions: community.applicationQuestions,
         discoverable: community.discoverable,
         createdAt: community.createdAt,
@@ -87,7 +95,7 @@ function communitiesRouter() {
         const viewer = req.viewer;
         const db = (0, store_1.readDb)();
         const items = db.communities
-            .filter((community) => community.discoverable && (community.visibility === 'public' || community.memberUserIds.includes(viewer.user.id) || (0, store_1.canManageCommunity)(community, viewer.user.id)))
+            .filter((community) => community.discoverable || community.memberUserIds.includes(viewer.user.id) || (0, store_1.canManageCommunity)(community, viewer.user.id))
             .sort((a, b) => b.memberUserIds.length - a.memberUserIds.length)
             .map((community) => communityPreview(db, community, viewer.user.id));
         return res.json(items);

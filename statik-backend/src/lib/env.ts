@@ -23,6 +23,8 @@ export const envSchema = z.object({
   STORAGE_PUBLIC_URL: z.string().optional(),
   STORAGE_ACCESS_KEY_ID: z.string().optional(),
   STORAGE_SECRET_ACCESS_KEY: z.string().optional(),
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
+  MAPBOX_TOKEN: z.string().optional(),
   UPLOADS_DIR: z.string().optional(),
   NODE_ENV: z.string().default('development'),
 });
@@ -71,11 +73,13 @@ export function getRuntimeDiagnostics() {
   if (!allowedOrigins.some((origin) => origin.includes('statik.au'))) warnings.push('ALLOWED_ORIGINS does not include statik.au.');
   if (env.STORAGE_PROVIDER === 'local' && !process.env.UPLOADS_DIR) warnings.push('Local storage is active. Configure a Railway volume and UPLOADS_DIR for persistent production uploads.');
   if (env.STORAGE_PROVIDER !== 'local' && (!env.STORAGE_BUCKET || !env.STORAGE_PUBLIC_URL)) warnings.push('Object storage selected but bucket/public URL settings are incomplete.');
+  if (!env.GOOGLE_MAPS_API_KEY && !env.MAPBOX_TOKEN) warnings.push('Map provider token missing. Configure VITE_GOOGLE_MAPS_API_KEY on Netlify and GOOGLE_MAPS_API_KEY on Railway for event location autocomplete.');
   return {
     publicAppUrl,
     publicServerUrl,
     allowedOrigins,
     storageProvider: env.STORAGE_PROVIDER,
+    mapProviderConfigured: Boolean(env.GOOGLE_MAPS_API_KEY || env.MAPBOX_TOKEN),
     storagePublicUrl: getStoragePublicUrl(),
     maxUploadBytes: getMaxUploadBytes(),
     nodeEnv: env.NODE_ENV,

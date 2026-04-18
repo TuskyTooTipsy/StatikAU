@@ -45,10 +45,36 @@ const crypto_1 = require("crypto");
 const auth_1 = require("../lib/auth");
 const env_1 = require("../lib/env");
 const store_1 = require("../lib/store");
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MIME_BY_EXT = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.heic': 'image/heic',
+    '.heif': 'image/heif',
+    '.mp4': 'video/mp4',
+    '.mov': 'video/quicktime',
+    '.webm': 'video/webm',
+    '.m4v': 'video/mp4',
+};
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 const ALL_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
-const SIGNING_SECRET = env_1.env.ADMIN_PASSWORD || 'statik-local-upload-secret';
+const SIGNING_SECRET = env_1.env.JWT_SECRET || env_1.env.ADMIN_PASSWORD || 'statik-local-upload-secret';
+function inferMimeType(fileName, incomingMimeType) {
+    if (incomingMimeType && incomingMimeType !== 'application/octet-stream')
+        return incomingMimeType;
+    const ext = path_1.default.extname(fileName || '').toLowerCase();
+    return MIME_BY_EXT[ext] || incomingMimeType || 'application/octet-stream';
+}
+function resolveServerOrigin(req) {
+    if (env_1.env.PUBLIC_SERVER_URL)
+        return (0, env_1.getPublicServerUrl)();
+    const host = req?.get('host');
+    const proto = req?.get('x-forwarded-proto') || req?.protocol || 'http';
+    return host ? `${proto}://${host}` : (0, env_1.getPublicServerUrl)();
+}
 function signUpload(uploadId, assetId, expiresAt) {
     return (0, crypto_1.createHmac)('sha256', SIGNING_SECRET).update(`${uploadId}:${assetId}:${expiresAt}`).digest('hex');
 }
@@ -62,7 +88,7 @@ function ensureUploadPermission(viewer, ownerType, ownerId) {
     }
     if (ownerType === 'community') {
         const community = db.communities.find((item) => item.id === ownerId);
-        return !!community && (community.memberUserIds.includes(viewer.user.id) || community.ownerUserId === viewer.user.id || viewer.user.role === 'admin');
+        return !!community && (community.ownerUserId === viewer.user.id || community.adminUserIds.includes(viewer.user.id) || viewer.user.role === 'admin');
     }
     if (ownerType === 'community_post') {
         const post = db.communityPosts.find((item) => item.id === ownerId);
@@ -72,6 +98,18 @@ function ensureUploadPermission(viewer, ownerType, ownerId) {
     if (ownerType === 'profile_post') {
         const post = db.profilePosts.find((item) => item.id === ownerId);
         return !!post && post.profileId === viewer.profile.id;
+    }
+    if (ownerType === 'event') {
+        const event = db.events.find((item) => item.id === ownerId);
+        if (!event)
+            return false;
+        if (event.createdByUserId === viewer.user.id || viewer.user.role === 'admin')
+            return true;
+        if (event.hostCommunityId) {
+            const community = db.communities.find((item) => item.id === event.hostCommunityId);
+            return !!community && (community.ownerUserId === viewer.user.id || community.adminUserIds.includes(viewer.user.id));
+        }
+        return false;
     }
     return false;
 }
@@ -89,10 +127,11 @@ function mediaRouter() {
         if (!parsed.success)
             return res.status(400).json({ error: 'Invalid upload payload' });
         const viewer = req.viewer;
-        if (!ALL_TYPES.includes(parsed.data.mimeType)) {
-            return res.status(400).json({ error: 'Unsupported file type' });
+        const mimeType = inferMimeType(parsed.data.fileName, parsed.data.mimeType);
+        if (!ALL_TYPES.includes(mimeType)) {
+            return res.status(400).json({ error: `Unsupported file type: ${mimeType}` });
         }
-        if (!ensureUploadPermission(viewer, parsed.data.ownerType, parsed.data.ownerId) && parsed.data.ownerType !== 'event') {
+        if (!ensureUploadPermission(viewer, parsed.data.ownerType, parsed.data.ownerId)) {
             return res.status(403).json({ error: 'Not allowed to upload to this target' });
         }
         const created = (0, store_1.mutateDb)((db) => {
@@ -104,9 +143,9 @@ function mediaRouter() {
                 ownerUserId: viewer.user.id,
                 ownerType: parsed.data.ownerType,
                 ownerId: parsed.data.ownerId,
-                kind: parsed.data.mimeType.startsWith('video/') ? 'video' : 'image',
+                kind: mimeType.startsWith('video/') ? 'video' : 'image',
                 fileName: parsed.data.fileName,
-                mimeType: parsed.data.mimeType,
+                mimeType,
                 size: parsed.data.size,
                 storageKey: '',
                 url: '',
@@ -121,7 +160,7 @@ function mediaRouter() {
                 ownerId: parsed.data.ownerId,
                 assetId,
                 fileName: parsed.data.fileName,
-                mimeType: parsed.data.mimeType,
+                mimeType,
                 size: parsed.data.size,
                 status: 'pending',
                 createdAt: (0, store_1.nowIso)(),
@@ -130,12 +169,14 @@ function mediaRouter() {
             (0, store_1.logAudit)(db, viewer.user.id, 'media_upload_initialized', 'media', assetId, parsed.data.ownerType);
             return { uploadId, assetId, expiresAt };
         });
+        const origin = resolveServerOrigin(req);
         const signature = signUpload(created.uploadId, created.assetId, created.expiresAt);
         return res.status(201).json({
             assetId: created.assetId,
             uploadId: created.uploadId,
-            uploadUrl: `${(0, env_1.getPublicServerUrl)()}/api/media/uploads/${created.uploadId}?asset=${created.assetId}&expires=${encodeURIComponent(created.expiresAt)}&sig=${signature}`,
+            uploadUrl: `${origin}/api/media/uploads/${created.uploadId}?asset=${created.assetId}&expires=${encodeURIComponent(created.expiresAt)}&sig=${signature}`,
             maxBytes: (0, env_1.getMaxUploadBytes)(),
+            acceptedMimeTypes: ALL_TYPES,
         });
     });
     router.put('/uploads/:uploadId', express_1.default.raw({ type: '*/*', limit: (0, env_1.getMaxUploadBytes)() }), async (req, res) => {
@@ -151,6 +192,8 @@ function mediaRouter() {
             return res.status(410).json({ error: 'Upload URL expired' });
         if (!Buffer.isBuffer(req.body))
             return res.status(400).json({ error: 'Binary file body required' });
+        if (req.body.length === 0)
+            return res.status(400).json({ error: 'Uploaded file was empty' });
         try {
             (0, store_1.mutateDb)((db) => {
                 const upload = db.pendingUploads.find((item) => item.id === uploadId && item.assetId === assetId);
@@ -163,10 +206,12 @@ function mediaRouter() {
                     throw new Error('Uploaded file exceeds declared size');
                 const ext = path_1.default.extname(upload.fileName).replace(/[^a-zA-Z0-9.]/g, '') || (upload.mimeType.startsWith('video/') ? '.mp4' : '.jpg');
                 const storageKey = `${asset.id}${ext}`;
+                if (!fs_1.default.existsSync(store_1.UPLOADS_DIR))
+                    fs_1.default.mkdirSync(store_1.UPLOADS_DIR, { recursive: true });
                 fs_1.default.writeFileSync(path_1.default.join(store_1.UPLOADS_DIR, storageKey), req.body);
                 upload.status = 'uploaded';
                 asset.storageKey = storageKey;
-                asset.url = `${(0, env_1.getPublicServerUrl)()}/uploads/${storageKey}`;
+                asset.url = `${(0, env_1.getStoragePublicUrl)()}/uploads/${storageKey}`;
                 asset.status = 'uploaded';
                 asset.updatedAt = (0, store_1.nowIso)();
             });
@@ -174,7 +219,8 @@ function mediaRouter() {
         catch (error) {
             return res.status(400).json({ error: error.message || 'Could not save upload' });
         }
-        return res.json({ success: true, assetId, url: `${(0, env_1.getPublicServerUrl)()}/uploads/${path_1.default.basename((0, store_1.readDb)().mediaAssets.find((item) => item.id === assetId)?.storageKey || '')}` });
+        const asset = (0, store_1.readDb)().mediaAssets.find((item) => item.id === assetId);
+        return res.json({ success: true, assetId, url: asset?.url || '' });
     });
     router.delete('/assets/:assetId', auth_1.requireAuth, async (req, res) => {
         const viewer = req.viewer;
@@ -201,6 +247,9 @@ function mediaRouter() {
             });
             db.communityPosts.forEach((post) => {
                 post.mediaIds = post.mediaIds.filter((id) => id !== target.id);
+            });
+            db.events.forEach((event) => {
+                event.mediaIds = (event.mediaIds || []).filter((id) => id !== target.id);
             });
             (0, store_1.logAudit)(db, viewer.user.id, 'media_deleted', 'media', target.id);
         });

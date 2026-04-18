@@ -36,7 +36,7 @@ export interface SiteState {
   registrationOpen: boolean;
   brandTagline: string;
   eventVisibilityMode?: 'open' | 'curated';
-  mapProvider?: 'mapbox' | 'manual';
+  mapProvider?: 'google' | 'mapbox' | 'manual';
   importsEnabled?: boolean;
   featureWindowDaysDefault?: number;
   homepageHeroMode?: 'events' | 'hybrid';
@@ -468,7 +468,7 @@ function defaultDb(): RuntimeDb {
       registrationOpen: true,
       brandTagline: 'Private scene network for people who actually show up.',
       eventVisibilityMode: 'curated',
-      mapProvider: 'mapbox',
+      mapProvider: 'google',
       importsEnabled: true,
       featureWindowDaysDefault: 3,
       homepageHeroMode: 'events',
@@ -502,6 +502,33 @@ function defaultDb(): RuntimeDb {
         key: 'qldraceway',
         name: 'Queensland Raceway',
         baseUrl: 'https://www.qldraceways.com.au',
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'source_racingcalendar_qldraceway',
+        key: 'racingcalendar_qldraceway',
+        name: 'RacingCalendar Queensland Raceway',
+        baseUrl: 'https://racingcalendar.net/circuit/queensland-raceway/2026',
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'source_willowbank',
+        key: 'willowbank',
+        name: 'Willowbank Raceway',
+        baseUrl: 'https://www.willowbank-raceway.com.au/events/',
+        enabled: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'source_thedriveteam',
+        key: 'thedriveteam',
+        name: 'The Drive Team Track Days',
+        baseUrl: 'https://thedriveteam.com.au/events/',
         enabled: true,
         createdAt: now,
         updatedAt: now,
@@ -646,7 +673,14 @@ function normalizeDb(raw: Partial<RuntimeDb>): RuntimeDb {
   db.pendingUploads = (db.pendingUploads || []).map((item: any) => ({ ...item, status: item.status || 'pending' }));
   db.reports = db.reports || [];
   db.auditLogs = db.auditLogs || [];
-  db.eventImportSources = (db.eventImportSources || defaultDb().eventImportSources).map((item: any) => ({ ...item, enabled: item.enabled !== false, createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+  {
+    const defaults = defaultDb().eventImportSources;
+    const existing = db.eventImportSources || [];
+    const byKey = new Map<string, any>();
+    defaults.forEach((source) => byKey.set(source.key, source));
+    existing.forEach((source: any) => byKey.set(source.key, { ...byKey.get(source.key), ...source }));
+    db.eventImportSources = Array.from(byKey.values()).map((item: any) => ({ ...item, enabled: item.enabled !== false, createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+  }
   db.eventImportRuns = (db.eventImportRuns || []).map((item: any) => ({ ...item, importedCount: Number(item.importedCount || 0), duplicateCount: Number(item.duplicateCount || 0), errorCount: Number(item.errorCount || 0) }));
   db.eventImportItems = (db.eventImportItems || []).map((item: any) => ({ ...item, normalizedTags: Array.isArray(item.normalizedTags) ? item.normalizedTags : [], status: item.status || 'pending', createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
   return db;
