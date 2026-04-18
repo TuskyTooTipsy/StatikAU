@@ -33,6 +33,7 @@ import AdminAnnouncementsPage from './pages/admin/Announcements';
 import AdminAnalyticsPage from './pages/admin/Analytics';
 import AdminRolesPage from './pages/admin/Roles';
 import AdminAuditLogsPage from './pages/admin/AuditLogs';
+import ShortRedirect from './pages/ShortRedirect';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/shop" element={<ShopPage />} />
+        <Route path="/s/:slug" element={<ShortRedirect />} />
 
         <Route path="/members" element={<ProtectedRoute><MembersDashboardPage /></ProtectedRoute>} />
         <Route path="/members/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />

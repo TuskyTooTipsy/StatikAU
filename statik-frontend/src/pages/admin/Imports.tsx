@@ -44,6 +44,18 @@ export default function AdminImports() {
     }
   }
 
+  async function handleSourceToggle(source: EventImportSource) {
+    setBusySourceKey(source.key);
+    try {
+      await networkApi.updateImportSource(source.id, { enabled: !source.enabled });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusySourceKey(null);
+    }
+  }
+
   async function handleModerate(item: EventImportItem, action: 'reject' | 'archive' | 'approve' | 'publish') {
     setActiveItemId(item.id);
     try {
@@ -92,7 +104,10 @@ export default function AdminImports() {
                       <p className="mt-2 text-xs uppercase tracking-[0.18em] text-silver/48">Last run {source.lastRunAt ? new Date(source.lastRunAt).toLocaleString() : 'never'}</p>
                       {source.lastRunMessage ? <p className="mt-2 text-sm text-silver/58">{source.lastRunMessage}</p> : null}
                     </div>
-                    <button type="button" onClick={() => void handleRun(source.key)} className="btn-primary h-10 px-4 text-[11px]">{busySourceKey === source.key ? 'Running…' : 'Run import'}</button>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => void handleSourceToggle(source)} className="btn-secondary h-10 px-4 text-[11px]">{busySourceKey === source.key ? 'Saving…' : source.enabled ? 'Disable source' : 'Enable source'}</button>
+                      <button type="button" disabled={!source.enabled} onClick={() => void handleRun(source.key)} className="btn-primary h-10 px-4 text-[11px] disabled:cursor-not-allowed disabled:opacity-45">{busySourceKey === source.key ? 'Running…' : 'Run import'}</button>
+                    </div>
                   </div>
                 </div>
               )) : <EmptyPanel eyebrow="Imports" title="No import sources configured" body="Add a source adapter to begin staging external event candidates." />}

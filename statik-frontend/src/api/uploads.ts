@@ -21,6 +21,15 @@ function resolveMime(file: File) {
   return MIME_BY_EXT[ext] || 'application/octet-stream';
 }
 
+function uploadError(xhr: XMLHttpRequest) {
+  try {
+    const json = JSON.parse(xhr.responseText);
+    return json.error || `Upload failed with HTTP ${xhr.status}`;
+  } catch {
+    return xhr.status ? `Upload failed with HTTP ${xhr.status}. Check VITE_API_BASE_URL, PUBLIC_SERVER_URL, CORS, and storage volume configuration.` : 'Upload failed before the server responded.';
+  }
+}
+
 export async function uploadMediaFile(
   file: File,
   ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event',
@@ -36,10 +45,18 @@ export async function uploadMediaFile(
     size: file.size,
   });
 
+  if (file.size > init.maxBytes) {
+    throw new Error(`File is too large. Max upload size is ${Math.round(init.maxBytes / 1024 / 1024)}MB.`);
+  }
+  if (init.acceptedMimeTypes?.length && !init.acceptedMimeTypes.includes(mimeType)) {
+    throw new Error(`Unsupported file type: ${mimeType}`);
+  }
+
   const result = await new Promise<{ url: string }>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', init.uploadUrl, true);
     xhr.setRequestHeader('Content-Type', mimeType);
+    xhr.timeout = 120000;
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable || !onProgress) return;
       onProgress(Math.round((event.loaded / event.total) * 100));
@@ -52,15 +69,11 @@ export async function uploadMediaFile(
           reject(new Error('Upload finished but returned an invalid response.'));
         }
       } else {
-        try {
-          const json = JSON.parse(xhr.responseText);
-          reject(new Error(json.error || 'Upload failed'));
-        } catch {
-          reject(new Error('Upload failed'));
-        }
+        reject(new Error(uploadError(xhr)));
       }
     };
-    xhr.onerror = () => reject(new Error('Upload failed. Check your network and storage configuration.'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out. Retry or check Railway storage/network limits.'));
+    xhr.onerror = () => reject(new Error('Upload failed. Check network, CORS, PUBLIC_SERVER_URL, VITE_API_BASE_URL, and storage configuration.'));
     xhr.send(file);
   });
 

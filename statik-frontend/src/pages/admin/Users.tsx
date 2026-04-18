@@ -67,6 +67,18 @@ export default function AdminUsers() {
     }
   }
 
+  async function moderateMessage(message: AdminMessageRecord, payload: { hidden?: boolean; deleted?: boolean; moderationNote?: string }) {
+    setBusy(message.id);
+    try {
+      await networkApi.moderateAdminMessage(message.id, payload);
+      await searchMessages();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const summaryCounts = useMemo(() => ({
     ownedGroups: activeUser?.ownedCommunities.length || 0,
     hostedEvents: activeUser?.hostedEvents.length || 0,
@@ -220,8 +232,19 @@ export default function AdminUsers() {
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
                           <h3>{message.profile?.displayName || message.userId}</h3>
-                          <p className="mt-2 text-sm text-silver/70">{message.community?.name || 'No community'} • {message.type}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-silver/70">
+                            <span>{message.community?.name || 'No community'}</span>
+                            <span>•</span>
+                            <span>{message.type}</span>
+                            {message.hidden ? <span className="status-chip">hidden</span> : null}
+                            {message.deleted ? <span className="status-chip">deleted</span> : null}
+                          </div>
                           <p className="mt-3 text-sm leading-7 text-silver/68">{message.text}</p>
+                          {message.moderationNote ? <p className="mt-2 text-xs uppercase tracking-[0.18em] text-silver/45">Note: {message.moderationNote}</p> : null}
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => void moderateMessage(message, { hidden: !message.hidden, moderationNote: message.hidden ? 'Visible again after admin review.' : 'Hidden from community view by admin moderation.' })} className="btn-secondary h-9 px-3 text-[10px]">{message.hidden ? 'Unhide' : 'Hide'}</button>
+                            <button type="button" onClick={() => void moderateMessage(message, { deleted: !message.deleted, hidden: !message.deleted, moderationNote: message.deleted ? 'Restored after admin review.' : 'Removed from community view by admin moderation.' })} className="btn-secondary h-9 px-3 text-[10px]">{message.deleted ? 'Restore' : 'Remove'}</button>
+                          </div>
                         </div>
                         <p className="text-xs uppercase tracking-[0.18em] text-silver/48">{new Date(message.createdAt).toLocaleString()}</p>
                       </div>

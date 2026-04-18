@@ -20,6 +20,7 @@ import type {
   NetworkSiteState,
   ProfilePost,
   PublicPlatformPayload,
+  VehicleRegistryPayload,
 } from '../types/network';
 
 const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -69,6 +70,14 @@ export function getApiOrigin() {
 
 export const networkApi = {
   getPublicPlatform: () => request<PublicPlatformPayload>('/platform/public'),
+  getVehicleRegistry: (params?: { vehicleType?: string; make?: string; model?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.vehicleType) search.set('vehicleType', params.vehicleType);
+    if (params?.make) search.set('make', params.make);
+    if (params?.model) search.set('model', params.model);
+    return request<VehicleRegistryPayload>(`/vehicle-registry${search.toString() ? `?${search.toString()}` : ''}`);
+  },
+  resolveShortLink: (slug: string, src?: string) => request<{ href: string; absoluteHref: string }>(`/links/resolve/${encodeURIComponent(slug)}${src ? `?src=${encodeURIComponent(src)}` : ''}`),
   getMemberHome: () => request<MemberHomePayload>('/platform/member-home'),
   register: (payload: { email: string; password: string; displayName: string }) => request<AuthPayload>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
   login: (payload: { email: string; password: string }) => request<AuthPayload>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
@@ -175,6 +184,14 @@ export const networkApi = {
 
   getAdminOverview: () => request<AdminOverviewPayload>('/admin/overview'),
   getApproveBay: () => request<AdminOverviewPayload['approveBay']>('/admin/approve-bay'),
+  getAdminAuditLogs: (params?: { q?: string; action?: string; targetType?: string; userId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set('q', params.q);
+    if (params?.action) search.set('action', params.action);
+    if (params?.targetType) search.set('targetType', params.targetType);
+    if (params?.userId) search.set('userId', params.userId);
+    return request<AdminOverviewPayload['auditLogs']>(`/admin/audit-logs${search.toString() ? `?${search.toString()}` : ''}`);
+  },
   listAdminUsers: (q?: string) => request<AdminUserSummary[]>(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getAdminUser: (userId: string) => request<AdminUserDetail>(`/admin/users/${userId}`),
   moderateUser: (userId: string, payload: { role?: 'user' | 'admin'; isBanned?: boolean; suspensionEndsAt?: string | null; moderationNote?: string; verifyProfile?: boolean; featureProfile?: boolean; featureEndsAt?: string | null }) => request<{ success: boolean }>(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
@@ -185,8 +202,11 @@ export const networkApi = {
     if (params?.communityId) search.set('communityId', params.communityId);
     return request<AdminMessageRecord[]>(`/admin/messages${search.toString() ? `?${search.toString()}` : ''}`);
   },
+  moderateAdminMessage: (messageId: string, payload: { hidden?: boolean; deleted?: boolean; moderationNote?: string }) => request<{ success: boolean }>(`/admin/messages/${messageId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteAdminMessage: (messageId: string) => request<{ success: boolean }>(`/admin/messages/${messageId}`, { method: 'DELETE' }),
   getAdminImports: () => request<{ sources: EventImportSource[]; runs: EventImportRun[]; items: EventImportItem[] }>('/admin/imports'),
   runAdminImport: (sourceKey: string) => request<EventImportRun>('/admin/imports/run', { method: 'POST', body: JSON.stringify({ sourceKey }) }),
+  updateImportSource: (sourceId: string, payload: Partial<EventImportSource>) => request<{ success: boolean }>(`/admin/imports/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateImportItem: (itemId: string, payload: Partial<Pick<EventImportItem, 'title' | 'location' | 'date' | 'time' | 'category' | 'description' | 'adminNote' | 'status'>> & { publishEvent?: boolean }) => request<{ success: boolean }>(`/admin/imports/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   updateSite: (payload: Partial<NetworkSiteState>) => request<NetworkSiteState>('/admin/site', { method: 'PATCH', body: JSON.stringify(payload) }),
   moderateProfile: (profileId: string, payload: { featured?: boolean; verified?: boolean; promoted?: boolean; analyticsVisibility?: 'public' | 'private' }) => request<{ success: boolean }>(`/admin/profiles/${profileId}`, { method: 'PATCH', body: JSON.stringify(payload) }),

@@ -1,3 +1,38 @@
+export interface VehicleRegistryPayload {
+  version: string;
+  source: string;
+  allowCustom: boolean;
+  registry: Array<{
+    make: string;
+    vehicleType: 'car' | 'bike' | 'truck' | 'other';
+    models: Array<{
+      name: string;
+      generations?: string[];
+      trims?: string[];
+      specialEditions?: string[];
+      bodyStyles?: string[];
+      drivetrains?: string[];
+      engines?: string[];
+      transmissions?: string[];
+    }>;
+  }>;
+  buildStages: string[];
+  ownershipStatuses: string[];
+  purposeTags: string[];
+  setupTags: string[];
+}
+
+export interface RuntimeDiagnostics {
+  publicAppUrl: string;
+  publicServerUrl: string;
+  allowedOrigins: string[];
+  storageProvider: string;
+  storagePublicUrl: string;
+  maxUploadBytes: number;
+  nodeEnv: string;
+  warnings: string[];
+}
+
 export interface NetworkSiteState {
   shopLocked: boolean;
   maintenanceMode: boolean;
@@ -9,6 +44,9 @@ export interface NetworkSiteState {
   featureWindowDaysDefault?: number;
   homepageHeroMode?: 'events' | 'hybrid';
   messageModerationEnabled?: boolean;
+  approvalWorkflowDefault?: 'manual' | 'trusted_auto_queue';
+  sponsorEventModuleEnabled?: boolean;
+  auditRetentionDays?: number;
 }
 
 export interface NetworkUser {
@@ -86,6 +124,16 @@ export interface GarageVehicle {
   statusTags: string[];
   purposeTags?: string[];
   setupTags?: string[];
+  engineCode?: string;
+  induction?: string;
+  fuelType?: string;
+  colourWrap?: string;
+  wheelTyreSpec?: string;
+  suspensionSetup?: string;
+  engineMods?: string;
+  aeroBodyMods?: string;
+  interiorAudioNotes?: string;
+  performanceNotes?: string;
   visibility: 'public' | 'private';
   description: string;
   modTags: string[];
@@ -254,6 +302,13 @@ export interface CommunityMessage {
   type: 'text' | 'event' | 'location';
   text: string;
   eventId?: string;
+  hidden?: boolean;
+  hiddenAt?: string;
+  hiddenByUserId?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
+  moderationNote?: string;
   location?: {
     lat: number;
     lng: number;
@@ -416,6 +471,7 @@ export interface AdminOverviewPayload {
   importSources?: EventImportSource[];
   importRuns?: EventImportRun[];
   importItems?: EventImportItem[];
+  diagnostics?: RuntimeDiagnostics;
 }
 
 

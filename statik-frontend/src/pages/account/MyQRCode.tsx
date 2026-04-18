@@ -5,6 +5,13 @@ import { accountNav } from '../../data/platform';
 import { networkApi } from '../../api/network';
 import type { NetworkShortLink } from '../../types/network';
 
+const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL || 'https://statik.au').replace(/\/$/, '');
+
+function canonicalLink(link: NetworkShortLink | null, qr = false) {
+  if (!link) return '';
+  return `${PUBLIC_APP_URL}/s/${link.slug}${qr ? '?src=qr' : ''}`;
+}
+
 export default function MyQRCode() {
   const [links, setLinks] = useState<NetworkShortLink[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
@@ -20,9 +27,9 @@ export default function MyQRCode() {
   const selected = useMemo(() => links.find((item) => item.id === selectedId) || links[0] || null, [links, selectedId]);
 
   useEffect(() => {
-    if (!selected?.qrUrl) return;
-    QRCode.toDataURL(selected.qrUrl, { margin: 1, width: 420, color: { dark: '#F5F7FA', light: '#050505' } }).then(setSrc).catch(console.error);
-  }, [selected?.qrUrl]);
+    if (!selected) return;
+    QRCode.toDataURL(canonicalLink(selected, true), { margin: 1, width: 420, color: { dark: '#F5F7FA', light: '#050505' } }).then(setSrc).catch(console.error);
+  }, [selected]);
 
   return (
     <DashboardShell eyebrow="Members / QR" title="QR deployment assets" nav={accountNav}>
@@ -39,8 +46,8 @@ export default function MyQRCode() {
               </select>
             </div>
             <div className="panel-blade">
-              <h3>{selected?.shortUrl || 'No share URL yet'}</h3>
-              <p className="mt-3 text-sm leading-7 text-silver/68">This QR encodes the tracked STATIK short link, so scans feed back into the real click + QR analytics stack instead of a fake client-only generator.</p>
+              <h3>{selected ? canonicalLink(selected) : 'No share URL yet'}</h3>
+              <p className="mt-3 text-sm leading-7 text-silver/68">This QR encodes the canonical statik.au short link, so scans feed back into the real click + QR analytics stack instead of a fake client-only generator.</p>
               {src ? <a href={src} download={`statik-${selected?.slug || 'qr'}.png`} className="btn-primary mt-5 h-11 px-4 text-[11px]">Download PNG</a> : null}
             </div>
             <div className="grid gap-3 md:grid-cols-2">
