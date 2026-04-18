@@ -442,12 +442,16 @@ export const accountNav = [
 
 export const adminNav = [
   { label: 'Admin Overview', href: '/admin' },
+  { label: 'Approval Bay', href: '/admin/approvals' },
   { label: 'Users', href: '/admin/users' },
   { label: 'Events', href: '/admin/events' },
   { label: 'Event Imports', href: '/admin/imports' },
   { label: 'Official Posts', href: '/admin/posts' },
   { label: 'Community Submissions', href: '/admin/submissions' },
   { label: 'Comments / Reports', href: '/admin/reports' },
+  { label: 'Messages', href: '/admin/messages' },
+  { label: 'Media', href: '/admin/media' },
+  { label: 'Garage / Vehicles', href: '/admin/garage' },
   { label: 'Sponsors / Deals', href: '/admin/sponsors' },
   { label: 'Shop Control', href: '/admin/shop' },
   { label: 'Announcements', href: '/admin/announcements' },

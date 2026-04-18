@@ -7,16 +7,14 @@ import { networkApi } from '../../api/network';
 import { uploadMediaFile } from '../../api/uploads';
 import { useSessionStore } from '../../store/session';
 import type { CommunityPreview, GarageVehicle, VehicleRegistryPayload } from '../../types/network';
-import {
-  buildStages as fallbackBuildStages,
-  findMake as fallbackFindMake,
-  findModel as fallbackFindModel,
-  makeOptions as fallbackMakeOptions,
-  ownershipStatuses as fallbackOwnershipStatuses,
-  purposeTags as fallbackPurposeTags,
-  setupTags as fallbackSetupTags,
-  vehicleRegistry as fallbackRegistry,
-} from '../../data/vehicleRegistry';
+const fallbackRegistry: VehicleRegistryPayload['registry'] = [];
+const fallbackBuildStages = ['planning', 'daily-ready', 'project', 'under rebuild', 'track setup', 'show build'];
+const fallbackOwnershipStatuses = ['current', 'sold', 'project', 'under rebuild'];
+const fallbackPurposeTags = ['street', 'track', 'show', 'cruise', 'workshop', '4x4', 'bike'];
+const fallbackSetupTags = ['street setup', 'track setup', 'drift setup', 'drag setup', 'touring setup', 'show setup'];
+function fallbackMakeOptions(_vehicleType: VehicleType) { return ['Other']; }
+function fallbackFindMake(_vehicleType: VehicleType, _make: string) { return undefined; }
+function fallbackFindModel(_vehicleType: VehicleType, _make: string, _model: string) { return undefined; }
 
 type VehicleType = 'car' | 'bike' | 'truck' | 'other';
 

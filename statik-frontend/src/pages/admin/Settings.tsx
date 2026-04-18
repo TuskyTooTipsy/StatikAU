@@ -171,9 +171,10 @@ export default function AdminSettings() {
             </div>
             <div className="panel-blade">
               <h3>Map provider</h3>
-              <p className="mt-3 text-sm leading-7 text-silver/60">Mapbox requires VITE_MAPBOX_TOKEN on Netlify. Manual mode keeps precise lat/lng entry available without fake maps.</p>
-              <select className="field-sharp mt-4" value={site?.mapProvider || 'manual'} onChange={(e) => void save('mapProvider', { mapProvider: e.target.value as 'mapbox' | 'manual' })}>
-                <option value="mapbox">mapbox</option>
+              <p className="mt-3 text-sm leading-7 text-silver/60">Google Maps requires VITE_GOOGLE_MAPS_API_KEY on Netlify. Mapbox remains accepted for backwards compatibility, and manual mode keeps precise lat/lng entry available without fake maps.</p>
+              <select className="field-sharp mt-4" value={site?.mapProvider || 'manual'} onChange={(e) => void save('mapProvider', { mapProvider: e.target.value as 'google' | 'mapbox' | 'manual' })}>
+                <option value="google">google maps</option>
+                <option value="mapbox">mapbox legacy</option>
                 <option value="manual">manual</option>
               </select>
             </div>

@@ -33,6 +33,10 @@ import AdminAnnouncementsPage from './pages/admin/Announcements';
 import AdminAnalyticsPage from './pages/admin/Analytics';
 import AdminRolesPage from './pages/admin/Roles';
 import AdminAuditLogsPage from './pages/admin/AuditLogs';
+import AdminApprovalBayPage from './pages/admin/ApprovalBay';
+import AdminMessagesPage from './pages/admin/Messages';
+import AdminMediaPage from './pages/admin/Media';
+import AdminGaragePage from './pages/admin/Garage';
 import ShortRedirect from './pages/ShortRedirect';
 import NotFound from './pages/NotFound';
 
@@ -61,7 +65,11 @@ export default function App() {
         <Route path="/members/qr" element={<ProtectedRoute><MyQRCode /></ProtectedRoute>} />
         <Route path="/members/analytics" element={<ProtectedRoute><MyAnalytics /></ProtectedRoute>} />
 
-        <Route path="/admin" element={<ProtectedRoute adminOnly><AdminOverviewPage /></ProtectedRoute>} />
+        
+        <Route path="/admin/approvals" element={<ProtectedRoute adminOnly><AdminApprovalBayPage /></ProtectedRoute>} />
+        <Route path="/admin/messages" element={<ProtectedRoute adminOnly><AdminMessagesPage /></ProtectedRoute>} />
+        <Route path="/admin/media" element={<ProtectedRoute adminOnly><AdminMediaPage /></ProtectedRoute>} />
+        <Route path="/admin/garage" element={<ProtectedRoute adminOnly><AdminGaragePage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsersPage /></ProtectedRoute>} />
         <Route path="/admin/imports" element={<ProtectedRoute adminOnly><AdminImportsPage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminSettingsPage /></ProtectedRoute>} />

@@ -14,7 +14,9 @@ export interface VehicleRegistryPayload {
       drivetrains?: string[];
       engines?: string[];
       transmissions?: string[];
+      regionMarkets?: string[];
     }>;
+  counts?: { makes: number; carMakes: number; bikeMakes: number; truckMakes: number; models: number };
   }>;
   buildStages: string[];
   ownershipStatuses: string[];
@@ -27,6 +29,7 @@ export interface RuntimeDiagnostics {
   publicServerUrl: string;
   allowedOrigins: string[];
   storageProvider: string;
+  mapProviderConfigured?: boolean;
   storagePublicUrl: string;
   maxUploadBytes: number;
   nodeEnv: string;
@@ -39,7 +42,7 @@ export interface NetworkSiteState {
   registrationOpen: boolean;
   brandTagline: string;
   eventVisibilityMode?: 'open' | 'curated';
-  mapProvider?: 'mapbox' | 'manual';
+  mapProvider?: 'google' | 'mapbox' | 'manual';
   importsEnabled?: boolean;
   featureWindowDaysDefault?: number;
   homepageHeroMode?: 'events' | 'hybrid';
@@ -145,7 +148,7 @@ export interface GarageVehicle {
   createdAt: string;
   updatedAt: string;
   heroMedia?: MediaAsset | null;
-  media?: MediaAsset[];
+  media: MediaAsset[];
   communities?: CommunityPreview[];
   owner?: NetworkProfile | null;
 }
@@ -356,6 +359,8 @@ export interface CommunityDetail extends CommunityPreview {
   hostedEvents: NetworkEvent[];
   featuredMembers: NetworkProfile[];
   featuredVehicles: GarageVehicle[];
+  featuredMemberUserIds?: string[];
+  featuredVehicleIds?: string[];
   memberVehicles?: GarageVehicle[];
   applicationQuestions: string[];
   discoverable: boolean;
@@ -452,6 +457,8 @@ export interface AdminOverviewPayload {
     note?: string;
   }>;
   media: MediaAsset[];
+  vehicles?: GarageVehicle[];
+  shortLinks?: NetworkShortLink[];
   auditLogs: Array<{
     id: string;
     actorUserId: string | null;

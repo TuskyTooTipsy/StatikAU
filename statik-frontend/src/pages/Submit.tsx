@@ -94,10 +94,10 @@ export default function Submit() {
   const activeCategory = useMemo(() => categoryConfig.find((item) => item.value === form.category) || categoryConfig[0], [form.category]);
 
   useEffect(() => {
-    if (!activeCategory.venueTypes.includes(form.venueType as any)) {
+    if (!(activeCategory.venueTypes as readonly string[]).includes(form.venueType)) {
       setForm((current) => ({ ...current, venueType: activeCategory.venueTypes[0] || 'other' }));
     }
-    if (!activeCategory.entryTypes.includes(form.entryType as any)) {
+    if (!(activeCategory.entryTypes as readonly string[]).includes(form.entryType)) {
       setForm((current) => ({ ...current, entryType: activeCategory.entryTypes[0] || 'mixed' }));
     }
   }, [activeCategory]);

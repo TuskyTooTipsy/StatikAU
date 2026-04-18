@@ -309,7 +309,7 @@ export default function CommunityDetailPage() {
         <div className="p-6 md:p-8 xl:p-10">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="flex items-start gap-4">
-              <AvatarBadge name={community.name} src={community.avatarUrl} size="xl" />
+              <AvatarBadge name={community.name} src={community.avatarUrl} size="lg" />
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="eyebrow">Group page</p>
@@ -375,7 +375,7 @@ export default function CommunityDetailPage() {
                 <h3>Rules</h3>
                 {(community.rules || []).length ? (
                   <ul className="mt-4 grid gap-3 text-sm leading-7 text-silver/72">
-                    {community.rules.map((rule) => <li key={rule}>• {rule}</li>)}
+                    {(community.rules || []).map((rule) => <li key={rule}>• {rule}</li>)}
                   </ul>
                 ) : <p className="mt-3 text-sm text-silver/64">No rules added yet.</p>}
               </div>
