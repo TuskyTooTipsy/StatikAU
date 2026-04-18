@@ -111,13 +111,21 @@ function ensureUploadPermission(viewer, ownerType, ownerId) {
         }
         return false;
     }
+    if (ownerType === 'content') {
+        const content = db.contentItems.find((item) => item.id === ownerId);
+        return viewer.user.role === 'admin' || !!content && content.authorUserId === viewer.user.id;
+    }
+    if (ownerType === 'business') {
+        const business = db.businessListings.find((item) => item.id === ownerId);
+        return viewer.user.role === 'admin' || !!business && business.ownerUserId === viewer.user.id;
+    }
     return false;
 }
 function mediaRouter() {
     const router = (0, express_1.Router)();
     router.post('/uploads/init', auth_1.requireAuth, async (req, res) => {
         const schema = zod_1.z.object({
-            ownerType: zod_1.z.enum(['profile', 'vehicle', 'profile_post', 'community', 'community_post', 'event']),
+            ownerType: zod_1.z.enum(['profile', 'vehicle', 'profile_post', 'community', 'community_post', 'event', 'content', 'business']),
             ownerId: zod_1.z.string().min(1),
             fileName: zod_1.z.string().min(1).max(200),
             mimeType: zod_1.z.string().min(1),
@@ -145,6 +153,11 @@ function mediaRouter() {
                 ownerId: parsed.data.ownerId,
                 kind: mimeType.startsWith('video/') ? 'video' : 'image',
                 fileName: parsed.data.fileName,
+                originalFilename: parsed.data.fileName,
+                displayTitle: '',
+                caption: '',
+                altText: '',
+                thumbnailUrl: '',
                 mimeType,
                 size: parsed.data.size,
                 storageKey: '',
@@ -214,6 +227,7 @@ function mediaRouter() {
                 asset.url = `${(0, env_1.getStoragePublicUrl)()}/uploads/${storageKey}`;
                 asset.status = 'uploaded';
                 asset.updatedAt = (0, store_1.nowIso)();
+                (0, store_1.logAudit)(db, upload.ownerUserId, 'media_upload_complete', 'media', asset.id, JSON.stringify({ ownerType: asset.ownerType, ownerId: asset.ownerId, size: req.body.length }));
             });
         }
         catch (error) {
@@ -221,6 +235,48 @@ function mediaRouter() {
         }
         const asset = (0, store_1.readDb)().mediaAssets.find((item) => item.id === assetId);
         return res.json({ success: true, assetId, url: asset?.url || '' });
+    });
+    router.patch('/assets/:assetId', auth_1.requireAuth, async (req, res) => {
+        const schema = zod_1.z.object({
+            displayTitle: zod_1.z.string().max(120).optional(),
+            caption: zod_1.z.string().max(500).optional(),
+            altText: zod_1.z.string().max(180).optional(),
+            ownerType: zod_1.z.enum(['profile', 'vehicle', 'profile_post', 'community', 'community_post', 'event', 'content', 'business']).optional(),
+            ownerId: zod_1.z.string().optional(),
+        });
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success)
+            return res.status(400).json({ error: 'Invalid media metadata payload' });
+        const viewer = req.viewer;
+        let updated = null;
+        try {
+            (0, store_1.mutateDb)((db) => {
+                const asset = db.mediaAssets.find((item) => item.id === req.params.assetId && item.status !== 'deleted');
+                if (!asset)
+                    throw new Error('Media not found');
+                if (asset.ownerUserId !== viewer.user.id && viewer.user.role !== 'admin')
+                    throw new Error('Not allowed to edit this media');
+                const nextOwnerType = parsed.data.ownerType || asset.ownerType;
+                const nextOwnerId = parsed.data.ownerId || asset.ownerId;
+                if ((parsed.data.ownerType || parsed.data.ownerId) && !ensureUploadPermission(viewer, nextOwnerType, nextOwnerId))
+                    throw new Error('Not allowed to attach media to this target');
+                if (parsed.data.displayTitle !== undefined)
+                    asset.displayTitle = parsed.data.displayTitle.trim();
+                if (parsed.data.caption !== undefined)
+                    asset.caption = parsed.data.caption.trim();
+                if (parsed.data.altText !== undefined)
+                    asset.altText = parsed.data.altText.trim();
+                asset.ownerType = nextOwnerType;
+                asset.ownerId = nextOwnerId;
+                asset.updatedAt = (0, store_1.nowIso)();
+                updated = asset;
+                (0, store_1.logAudit)(db, viewer.user.id, 'media_metadata_updated', 'media', asset.id, JSON.stringify(parsed.data));
+            });
+        }
+        catch (error) {
+            return res.status(400).json({ error: error.message || 'Could not update media metadata' });
+        }
+        return res.json(updated);
     });
     router.delete('/assets/:assetId', auth_1.requireAuth, async (req, res) => {
         const viewer = req.viewer;
@@ -250,6 +306,18 @@ function mediaRouter() {
             });
             db.events.forEach((event) => {
                 event.mediaIds = (event.mediaIds || []).filter((id) => id !== target.id);
+            });
+            db.contentItems.forEach((content) => {
+                content.galleryMediaIds = content.galleryMediaIds.filter((id) => id !== target.id);
+                if (content.heroMediaId === target.id)
+                    content.heroMediaId = undefined;
+            });
+            db.businessListings.forEach((business) => {
+                business.galleryMediaIds = business.galleryMediaIds.filter((id) => id !== target.id);
+                if (business.logoMediaId === target.id)
+                    business.logoMediaId = undefined;
+                if (business.bannerMediaId === target.id)
+                    business.bannerMediaId = undefined;
             });
             (0, store_1.logAudit)(db, viewer.user.id, 'media_deleted', 'media', target.id);
         });

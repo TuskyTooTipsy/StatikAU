@@ -22,6 +22,14 @@ function resolveTargetHref(db: ReturnType<typeof readDb>, targetType: string, ta
     const profile = vehicle ? db.profiles.find((item) => item.id === vehicle.profileId) : null;
     return profile && vehicle ? `/profiles/${profile.slug}?vehicle=${vehicle.id}` : null;
   }
+  if (targetType === 'article' || targetType === 'news') {
+    const content = db.contentItems.find((item) => item.id === targetId && item.status === 'published');
+    return content ? `/${content.type === 'news' ? 'news' : 'articles'}/${content.slug}` : null;
+  }
+  if (targetType === 'business') {
+    const business = db.businessListings.find((item) => item.id === targetId && item.status === 'approved');
+    return business ? `/businesses/${business.slug}` : null;
+  }
   return null;
 }
 

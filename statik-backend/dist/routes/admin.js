@@ -7,6 +7,8 @@ const auth_1 = require("../lib/auth");
 const importSources_1 = require("../lib/importSources");
 const env_1 = require("../lib/env");
 const store_1 = require("../lib/store");
+const content_1 = require("./content");
+const businesses_1 = require("./businesses");
 function buildOverview() {
     const db = (0, store_1.readDb)();
     return {
@@ -24,6 +26,11 @@ function buildOverview() {
             media: db.mediaAssets.filter((asset) => asset.status === 'uploaded').length,
             openReports: db.reports.filter((report) => report.status === 'open').length,
             pendingImports: db.eventImportItems.filter((item) => item.status === 'pending').length,
+            publishedArticles: db.contentItems.filter((item) => item.type === 'article' && item.status === 'published').length,
+            publishedNews: db.contentItems.filter((item) => item.type === 'news' && item.status === 'published').length,
+            draftContent: db.contentItems.filter((item) => item.status === 'draft' || item.status === 'pending').length,
+            pendingBusinesses: db.businessListings.filter((item) => item.status === 'pending').length,
+            approvedBusinesses: db.businessListings.filter((item) => item.status === 'approved').length,
         },
         profiles: db.profiles.map((profile) => ({ ...profile, stats: (0, store_1.profileStats)(db, profile.id) })),
         events: db.events,
@@ -32,11 +39,16 @@ function buildOverview() {
         media: db.mediaAssets.filter((asset) => asset.status === 'uploaded').slice(0, 120),
         vehicles: db.garageVehicles.slice(0, 160),
         shortLinks: db.shortLinks.slice(0, 160),
+        contentItems: db.contentItems.slice(0, 160),
+        businessListings: db.businessListings.slice(0, 160),
+        aiGenerationLogs: db.aiGenerationLogs.slice(0, 80),
         auditLogs: db.auditLogs.slice(0, 120),
         approveBay: {
             events: db.events.filter((event) => event.approvalStatus === 'pending' || event.approvalStatus === 'revision_requested').slice(0, 40),
             imports: db.eventImportItems.filter((item) => item.status === 'pending').slice(0, 40),
             reports: db.reports.filter((report) => report.status === 'open').slice(0, 40),
+            content: db.contentItems.filter((item) => item.status === 'pending' || item.status === 'scheduled').slice(0, 40),
+            businesses: db.businessListings.filter((item) => item.status === 'pending').slice(0, 40),
             posts: [
                 ...db.profilePosts.filter((post) => post.featured === false).map((post) => ({ ...post, queueType: 'profile_post' })),
                 ...db.communityPosts.filter((post) => post.featured === false).map((post) => ({ ...post, queueType: 'community_post' })),
@@ -55,6 +67,111 @@ function adminRouter() {
     });
     router.get('/approve-bay', auth_1.requireAdmin, async (_req, res) => {
         return res.json(buildOverview().approveBay);
+    });
+    router.get('/content', auth_1.requireAdmin, async (req, res) => {
+        const db = (0, store_1.readDb)();
+        const type = typeof req.query.type === 'string' ? req.query.type : '';
+        const status = typeof req.query.status === 'string' ? req.query.status : '';
+        const q = typeof req.query.q === 'string' ? req.query.q.toLowerCase() : '';
+        const items = db.contentItems
+            .filter((item) => !type || item.type === type)
+            .filter((item) => !status || item.status === status)
+            .filter((item) => !q || [item.title, item.excerpt, item.category, item.tags.join(' ')].join(' ').toLowerCase().includes(q))
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .map((item) => (0, store_1.mapContentPublic)(db, item));
+        return res.json({ items, revisions: db.contentRevisions.slice(0, 80), aiDrafts: db.aiGenerationLogs.slice(0, 40) });
+    });
+    router.post('/content', auth_1.requireAdmin, async (req, res) => (0, content_1.upsertContentFromAdmin)(req, res));
+    router.patch('/content/:contentId', auth_1.requireAdmin, async (req, res) => (0, content_1.upsertContentFromAdmin)(req, res, req.params.contentId));
+    router.delete('/content/:contentId', auth_1.requireAdmin, async (req, res) => {
+        const viewer = req.viewer;
+        (0, store_1.mutateDb)((db) => {
+            const item = db.contentItems.find((entry) => entry.id === req.params.contentId);
+            if (!item)
+                throw new Error('Content not found');
+            item.status = 'archived';
+            item.updatedAt = (0, store_1.nowIso)();
+            (0, store_1.logAudit)(db, viewer.user.id, 'content_archived', item.type, item.id);
+        });
+        return res.json({ success: true });
+    });
+    router.post('/ai-writer/generate', auth_1.requireAdmin, async (req, res) => {
+        const schema = zod_1.z.object({
+            contentType: zod_1.z.enum(['article', 'news']).default('article'),
+            mode: zod_1.z.enum(['draft', 'outline', 'headline', 'seo', 'recap', 'spotlight']).default('draft'),
+            tone: zod_1.z.string().max(120).optional().default(env_1.env.AI_DEFAULT_TONE),
+            length: zod_1.z.enum(['short', 'medium', 'long']).optional().default('medium'),
+            prompt: zod_1.z.string().max(2000).optional().default(''),
+            sourceContext: zod_1.z.string().max(8000).optional().default(''),
+            linkedEventId: zod_1.z.string().optional(),
+            linkedBusinessId: zod_1.z.string().optional(),
+            linkedProfileId: zod_1.z.string().optional(),
+            linkedCommunityId: zod_1.z.string().optional(),
+        });
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success)
+            return res.status(400).json({ error: 'Invalid AI writer payload' });
+        const db = (0, store_1.readDb)();
+        if (db.site.aiWriterEnabled === false)
+            return res.status(403).json({ error: 'AI writer is disabled in admin settings.' });
+        if (!env_1.env.AI_API_KEY)
+            return res.status(503).json({ error: 'AI writing is not configured. Set AI_PROVIDER, AI_API_KEY, and AI_MODEL on Railway. Manual CMS still works.' });
+        const viewer = req.viewer;
+        const linkedFacts = [
+            parsed.data.linkedEventId ? db.events.find((item) => item.id === parsed.data.linkedEventId) : null,
+            parsed.data.linkedBusinessId ? db.businessListings.find((item) => item.id === parsed.data.linkedBusinessId) : null,
+            parsed.data.linkedProfileId ? db.profiles.find((item) => item.id === parsed.data.linkedProfileId) : null,
+            parsed.data.linkedCommunityId ? db.communities.find((item) => item.id === parsed.data.linkedCommunityId) : null,
+        ].filter(Boolean).map((item) => JSON.stringify(item)).join('\n');
+        const system = 'You are STATIK editorial support. Create draft copy only. Never invent real events, people, quotes, results, sponsorships, attendance, locations, or stats. If facts are missing, write questions or clearly mark gaps. Keep a dark, sharp, premium Australian automotive culture tone.';
+        const userPrompt = `Content type: ${parsed.data.contentType}\nMode: ${parsed.data.mode}\nTone: ${parsed.data.tone}\nLength: ${parsed.data.length}\nSource notes:\n${parsed.data.sourceContext}\nLinked platform facts:\n${linkedFacts}\nAdmin prompt:\n${parsed.data.prompt}`;
+        let output = '';
+        try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env_1.env.AI_API_KEY}` },
+                body: JSON.stringify({ model: env_1.env.AI_MODEL, messages: [{ role: 'system', content: system }, { role: 'user', content: userPrompt }], max_tokens: Number(env_1.env.AI_MAX_TOKENS || 1200), temperature: 0.55 }),
+            });
+            if (!response.ok)
+                throw new Error(`AI provider returned HTTP ${response.status}`);
+            const json = await response.json();
+            output = json.choices?.[0]?.message?.content || '';
+        }
+        catch (error) {
+            return res.status(502).json({ error: error.message || 'AI generation failed' });
+        }
+        let logId = '';
+        (0, store_1.mutateDb)((mutable) => {
+            logId = (0, store_1.createId)('ai');
+            mutable.aiGenerationLogs.unshift({ id: logId, actorUserId: viewer.user.id, contentType: parsed.data.contentType, prompt: parsed.data.prompt, sourceContext: parsed.data.sourceContext, output, provider: env_1.env.AI_PROVIDER || 'openai', model: env_1.env.AI_MODEL, createdAt: (0, store_1.nowIso)() });
+            (0, store_1.logAudit)(mutable, viewer.user.id, 'ai_generation_created', 'ai_writer', logId, JSON.stringify({ contentType: parsed.data.contentType, mode: parsed.data.mode }));
+        });
+        return res.json({ id: logId, output, aiAssisted: true });
+    });
+    router.get('/businesses', auth_1.requireAdmin, async (req, res) => {
+        const db = (0, store_1.readDb)();
+        const q = typeof req.query.q === 'string' ? req.query.q.toLowerCase() : '';
+        const status = typeof req.query.status === 'string' ? req.query.status : '';
+        const items = db.businessListings
+            .filter((item) => !status || item.status === status)
+            .filter((item) => !q || [item.businessName, item.description, item.category, item.region].join(' ').toLowerCase().includes(q))
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .map((item) => (0, store_1.mapBusinessPublic)(db, item));
+        return res.json({ items, categories: businesses_1.businessCategories });
+    });
+    router.post('/businesses', auth_1.requireAdmin, async (req, res) => (0, businesses_1.upsertBusinessFromAdmin)(req, res));
+    router.patch('/businesses/:businessId', auth_1.requireAdmin, async (req, res) => (0, businesses_1.upsertBusinessFromAdmin)(req, res, req.params.businessId));
+    router.delete('/businesses/:businessId', auth_1.requireAdmin, async (req, res) => {
+        const viewer = req.viewer;
+        (0, store_1.mutateDb)((db) => {
+            const item = db.businessListings.find((entry) => entry.id === req.params.businessId);
+            if (!item)
+                throw new Error('Business not found');
+            item.status = 'archived';
+            item.updatedAt = (0, store_1.nowIso)();
+            (0, store_1.logAudit)(db, viewer.user.id, 'business_archived', 'business', item.id);
+        });
+        return res.json({ success: true });
     });
     router.get('/audit-logs', auth_1.requireAdmin, async (req, res) => {
         const db = (0, store_1.readDb)();
@@ -116,6 +233,7 @@ function adminRouter() {
             vehicles: db.garageVehicles.filter((vehicle) => vehicle.profileId === user.profileId),
             media: db.mediaAssets.filter((asset) => asset.ownerUserId === user.id).slice(0, 20),
             shortLinks: db.shortLinks.filter((link) => link.ownerUserId === user.id),
+            businesses: db.businessListings.filter((business) => business.ownerUserId === user.id),
         });
     });
     router.patch('/users/:userId', auth_1.requireAdmin, async (req, res) => {
@@ -361,6 +479,12 @@ function adminRouter() {
             approvalWorkflowDefault: zod_1.z.enum(['manual', 'trusted_auto_queue']).optional(),
             sponsorEventModuleEnabled: zod_1.z.boolean().optional(),
             auditRetentionDays: zod_1.z.number().min(7).max(3650).optional(),
+            newestMembersEnabled: zod_1.z.boolean().optional(),
+            articlesEnabled: zod_1.z.boolean().optional(),
+            newsEnabled: zod_1.z.boolean().optional(),
+            businessDirectoryEnabled: zod_1.z.boolean().optional(),
+            aiWriterEnabled: zod_1.z.boolean().optional(),
+            newestMembersRequireCompleteProfile: zod_1.z.boolean().optional(),
         });
         const parsed = schema.safeParse(req.body);
         if (!parsed.success)

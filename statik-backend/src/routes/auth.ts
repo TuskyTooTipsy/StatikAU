@@ -29,6 +29,24 @@ export default function authRouter() {
       email: z.string().email(),
       password: z.string().min(8),
       displayName: z.string().min(2).max(40),
+      username: z.string().min(3).max(40).optional(),
+      termsAccepted: z.boolean().optional().default(false),
+      location: z.string().max(80).optional().default(''),
+      memberType: z.enum(['car_enthusiast', 'bike_rider', 'photographer_videographer', 'business_owner', 'car_group_owner', 'event_host', 'workshop_vendor', 'spectator_fan', 'other']).optional().default('car_enthusiast'),
+      bio: z.string().max(300).optional().default(''),
+      interestTags: z.array(z.string().max(32)).max(16).optional().default([]),
+      preferredEventTypes: z.array(z.string().max(40)).max(16).optional().default([]),
+      discoveryVisible: z.boolean().optional().default(true),
+      newestMemberVisible: z.boolean().optional().default(true),
+      firstVehicle: z.object({
+        vehicleType: z.enum(['car', 'bike', 'truck', 'other']).optional().default('car'),
+        year: z.string().max(10).optional().default(''),
+        make: z.string().max(80),
+        model: z.string().max(100),
+        trim: z.string().max(80).optional().default(''),
+        specialEdition: z.string().max(120).optional().default(''),
+        stage: z.string().max(80).optional().default(''),
+      }).optional(),
     });
 
     const parsed = schema.safeParse(req.body);
@@ -47,7 +65,7 @@ export default function authRouter() {
         const firstUser = db.users.length === 0;
         const userId = createId('user');
         const profileId = createId('profile');
-        const slug = uniqueSlug(displayName || slugify(email.split('@')[0]), db.profiles.map((item) => item.slug));
+        const slug = uniqueSlug(parsed.data.username || displayName || slugify(email.split('@')[0]), db.profiles.map((item) => item.slug));
         const createdAt = nowIso();
 
         db.profiles.push({
@@ -55,9 +73,9 @@ export default function authRouter() {
           userId,
           slug,
           displayName,
-          bio: '',
-          location: '',
-          primaryCar: '',
+          bio: parsed.data.bio || '',
+          location: parsed.data.location || '',
+          primaryCar: parsed.data.firstVehicle ? [parsed.data.firstVehicle.year, parsed.data.firstVehicle.make, parsed.data.firstVehicle.model].filter(Boolean).join(' ') : '',
           avatarUrl: '',
           bannerUrl: '',
           verified: false,
@@ -67,7 +85,17 @@ export default function authRouter() {
           currentlyBuilding: '',
           sceneTags: [],
           analyticsVisibility: 'public',
+          memberType: parsed.data.memberType,
+          interestTags: parsed.data.interestTags,
+          preferredEventTypes: parsed.data.preferredEventTypes,
+          discoveryVisible: parsed.data.discoveryVisible,
+          newestMemberVisible: parsed.data.newestMemberVisible,
+          profileComplete: Boolean(parsed.data.bio || parsed.data.location || parsed.data.firstVehicle),
+          showLocation: true,
+          showEventActivity: true,
+          showGroupAffiliations: true,
           createdAt,
+          updatedAt: createdAt,
         });
 
         db.users.push({
@@ -78,7 +106,43 @@ export default function authRouter() {
           role: firstUser ? 'admin' : 'user',
           profileId,
           createdAt,
+          termsAcceptedAt: parsed.data.termsAccepted ? createdAt : null,
+          lastOnboardingStep: parsed.data.firstVehicle ? 'first_vehicle' : 'profile_details',
+          onboardingCompleted: Boolean(parsed.data.bio || parsed.data.location || parsed.data.firstVehicle),
         });
+
+        if (parsed.data.firstVehicle?.make && parsed.data.firstVehicle?.model) {
+          db.garageVehicles.push({
+            id: createId('vehicle'),
+            profileId,
+            vehicleType: parsed.data.firstVehicle.vehicleType || 'car',
+            year: parsed.data.firstVehicle.year || '',
+            make: parsed.data.firstVehicle.make,
+            model: parsed.data.firstVehicle.model,
+            trim: parsed.data.firstVehicle.trim || '',
+            generation: '',
+            specialEdition: parsed.data.firstVehicle.specialEdition || '',
+            bodyStyle: '',
+            drivetrain: '',
+            engineFamily: '',
+            transmission: '',
+            nickname: '',
+            stage: parsed.data.firstVehicle.stage || '',
+            ownershipStatus: '',
+            statusTags: [],
+            purposeTags: [],
+            setupTags: [],
+            visibility: 'public',
+            description: '',
+            modTags: [],
+            mediaIds: [],
+            linkedCommunityIds: [],
+            timeline: [],
+            featured: true,
+            createdAt,
+            updatedAt: createdAt,
+          });
+        }
 
         logAudit(db, userId, 'register', 'user', userId, firstUser ? 'First account auto-promoted to admin' : undefined);
         return { userId, foundingAdmin: firstUser };

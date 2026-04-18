@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAdmin } from '../lib/auth';
 import { publishImportItemAsEvent, runImportSource } from '../lib/importSources';
-import { getRuntimeDiagnostics } from '../lib/env';
-import { logAudit, mutateDb, nowIso, profileStats, readDb, removeMediaFile } from '../lib/store';
+import { env, getRuntimeDiagnostics } from '../lib/env';
+import { createId, findOrCreateShortLink, getMediaList, logAudit, mapBusinessPublic, mapContentPublic, mutateDb, nowIso, profileStats, readDb, removeMediaFile } from '../lib/store';
+import { upsertContentFromAdmin } from './content';
+import { businessCategories, upsertBusinessFromAdmin } from './businesses';
 
 function buildOverview() {
   const db = readDb();
@@ -22,6 +24,11 @@ function buildOverview() {
       media: db.mediaAssets.filter((asset) => asset.status === 'uploaded').length,
       openReports: db.reports.filter((report) => report.status === 'open').length,
       pendingImports: db.eventImportItems.filter((item) => item.status === 'pending').length,
+      publishedArticles: db.contentItems.filter((item) => item.type === 'article' && item.status === 'published').length,
+      publishedNews: db.contentItems.filter((item) => item.type === 'news' && item.status === 'published').length,
+      draftContent: db.contentItems.filter((item) => item.status === 'draft' || item.status === 'pending').length,
+      pendingBusinesses: db.businessListings.filter((item) => item.status === 'pending').length,
+      approvedBusinesses: db.businessListings.filter((item) => item.status === 'approved').length,
     },
     profiles: db.profiles.map((profile) => ({ ...profile, stats: profileStats(db, profile.id) })),
     events: db.events,
@@ -30,11 +37,16 @@ function buildOverview() {
     media: db.mediaAssets.filter((asset) => asset.status === 'uploaded').slice(0, 120),
     vehicles: db.garageVehicles.slice(0, 160),
     shortLinks: db.shortLinks.slice(0, 160),
+    contentItems: db.contentItems.slice(0, 160),
+    businessListings: db.businessListings.slice(0, 160),
+    aiGenerationLogs: db.aiGenerationLogs.slice(0, 80),
     auditLogs: db.auditLogs.slice(0, 120),
     approveBay: {
       events: db.events.filter((event) => event.approvalStatus === 'pending' || event.approvalStatus === 'revision_requested').slice(0, 40),
       imports: db.eventImportItems.filter((item) => item.status === 'pending').slice(0, 40),
       reports: db.reports.filter((report) => report.status === 'open').slice(0, 40),
+      content: db.contentItems.filter((item) => item.status === 'pending' || item.status === 'scheduled').slice(0, 40),
+      businesses: db.businessListings.filter((item) => item.status === 'pending').slice(0, 40),
       posts: [
         ...db.profilePosts.filter((post) => post.featured === false).map((post) => ({ ...post, queueType: 'profile_post' })),
         ...db.communityPosts.filter((post) => post.featured === false).map((post) => ({ ...post, queueType: 'community_post' })),
@@ -56,6 +68,111 @@ export default function adminRouter() {
 
   router.get('/approve-bay', requireAdmin, async (_req, res) => {
     return res.json(buildOverview().approveBay);
+  });
+
+
+  router.get('/content', requireAdmin, async (req, res) => {
+    const db = readDb();
+    const type = typeof req.query.type === 'string' ? req.query.type : '';
+    const status = typeof req.query.status === 'string' ? req.query.status : '';
+    const q = typeof req.query.q === 'string' ? req.query.q.toLowerCase() : '';
+    const items = db.contentItems
+      .filter((item) => !type || item.type === type)
+      .filter((item) => !status || item.status === status)
+      .filter((item) => !q || [item.title, item.excerpt, item.category, item.tags.join(' ')].join(' ').toLowerCase().includes(q))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((item) => mapContentPublic(db, item));
+    return res.json({ items, revisions: db.contentRevisions.slice(0, 80), aiDrafts: db.aiGenerationLogs.slice(0, 40) });
+  });
+
+  router.post('/content', requireAdmin, async (req, res) => upsertContentFromAdmin(req as any, res));
+  router.patch('/content/:contentId', requireAdmin, async (req, res) => upsertContentFromAdmin(req as any, res, req.params.contentId));
+
+  router.delete('/content/:contentId', requireAdmin, async (req, res) => {
+    const viewer = (req as any).viewer;
+    mutateDb((db) => {
+      const item = db.contentItems.find((entry) => entry.id === req.params.contentId);
+      if (!item) throw new Error('Content not found');
+      item.status = 'archived';
+      item.updatedAt = nowIso();
+      logAudit(db, viewer.user.id, 'content_archived', item.type, item.id);
+    });
+    return res.json({ success: true });
+  });
+
+  router.post('/ai-writer/generate', requireAdmin, async (req, res) => {
+    const schema = z.object({
+      contentType: z.enum(['article', 'news']).default('article'),
+      mode: z.enum(['draft', 'outline', 'headline', 'seo', 'recap', 'spotlight']).default('draft'),
+      tone: z.string().max(120).optional().default(env.AI_DEFAULT_TONE),
+      length: z.enum(['short', 'medium', 'long']).optional().default('medium'),
+      prompt: z.string().max(2000).optional().default(''),
+      sourceContext: z.string().max(8000).optional().default(''),
+      linkedEventId: z.string().optional(),
+      linkedBusinessId: z.string().optional(),
+      linkedProfileId: z.string().optional(),
+      linkedCommunityId: z.string().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid AI writer payload' });
+    const db = readDb();
+    if (db.site.aiWriterEnabled === false) return res.status(403).json({ error: 'AI writer is disabled in admin settings.' });
+    if (!env.AI_API_KEY) return res.status(503).json({ error: 'AI writing is not configured. Set AI_PROVIDER, AI_API_KEY, and AI_MODEL on Railway. Manual CMS still works.' });
+    const viewer = (req as any).viewer;
+    const linkedFacts = [
+      parsed.data.linkedEventId ? db.events.find((item) => item.id === parsed.data.linkedEventId) : null,
+      parsed.data.linkedBusinessId ? db.businessListings.find((item) => item.id === parsed.data.linkedBusinessId) : null,
+      parsed.data.linkedProfileId ? db.profiles.find((item) => item.id === parsed.data.linkedProfileId) : null,
+      parsed.data.linkedCommunityId ? db.communities.find((item) => item.id === parsed.data.linkedCommunityId) : null,
+    ].filter(Boolean).map((item) => JSON.stringify(item)).join('\n');
+    const system = 'You are STATIK editorial support. Create draft copy only. Never invent real events, people, quotes, results, sponsorships, attendance, locations, or stats. If facts are missing, write questions or clearly mark gaps. Keep a dark, sharp, premium Australian automotive culture tone.';
+    const userPrompt = `Content type: ${parsed.data.contentType}\nMode: ${parsed.data.mode}\nTone: ${parsed.data.tone}\nLength: ${parsed.data.length}\nSource notes:\n${parsed.data.sourceContext}\nLinked platform facts:\n${linkedFacts}\nAdmin prompt:\n${parsed.data.prompt}`;
+    let output = '';
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.AI_API_KEY}` },
+        body: JSON.stringify({ model: env.AI_MODEL, messages: [{ role: 'system', content: system }, { role: 'user', content: userPrompt }], max_tokens: Number(env.AI_MAX_TOKENS || 1200), temperature: 0.55 }),
+      });
+      if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}`);
+      const json: any = await response.json();
+      output = json.choices?.[0]?.message?.content || '';
+    } catch (error: any) {
+      return res.status(502).json({ error: error.message || 'AI generation failed' });
+    }
+    let logId = '';
+    mutateDb((mutable) => {
+      logId = createId('ai');
+      mutable.aiGenerationLogs.unshift({ id: logId, actorUserId: viewer.user.id, contentType: parsed.data.contentType, prompt: parsed.data.prompt, sourceContext: parsed.data.sourceContext, output, provider: env.AI_PROVIDER || 'openai', model: env.AI_MODEL, createdAt: nowIso() });
+      logAudit(mutable, viewer.user.id, 'ai_generation_created', 'ai_writer', logId, JSON.stringify({ contentType: parsed.data.contentType, mode: parsed.data.mode }));
+    });
+    return res.json({ id: logId, output, aiAssisted: true });
+  });
+
+  router.get('/businesses', requireAdmin, async (req, res) => {
+    const db = readDb();
+    const q = typeof req.query.q === 'string' ? req.query.q.toLowerCase() : '';
+    const status = typeof req.query.status === 'string' ? req.query.status : '';
+    const items = db.businessListings
+      .filter((item) => !status || item.status === status)
+      .filter((item) => !q || [item.businessName, item.description, item.category, item.region].join(' ').toLowerCase().includes(q))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((item) => mapBusinessPublic(db, item));
+    return res.json({ items, categories: businessCategories });
+  });
+
+  router.post('/businesses', requireAdmin, async (req, res) => upsertBusinessFromAdmin(req as any, res));
+  router.patch('/businesses/:businessId', requireAdmin, async (req, res) => upsertBusinessFromAdmin(req as any, res, req.params.businessId));
+  router.delete('/businesses/:businessId', requireAdmin, async (req, res) => {
+    const viewer = (req as any).viewer;
+    mutateDb((db) => {
+      const item = db.businessListings.find((entry) => entry.id === req.params.businessId);
+      if (!item) throw new Error('Business not found');
+      item.status = 'archived';
+      item.updatedAt = nowIso();
+      logAudit(db, viewer.user.id, 'business_archived', 'business', item.id);
+    });
+    return res.json({ success: true });
   });
 
 
@@ -120,6 +237,7 @@ export default function adminRouter() {
       vehicles: db.garageVehicles.filter((vehicle) => vehicle.profileId === user.profileId),
       media: db.mediaAssets.filter((asset) => asset.ownerUserId === user.id).slice(0, 20),
       shortLinks: db.shortLinks.filter((link) => link.ownerUserId === user.id),
+      businesses: db.businessListings.filter((business) => business.ownerUserId === user.id),
     });
   });
 
@@ -351,6 +469,12 @@ export default function adminRouter() {
       approvalWorkflowDefault: z.enum(['manual', 'trusted_auto_queue']).optional(),
       sponsorEventModuleEnabled: z.boolean().optional(),
       auditRetentionDays: z.number().min(7).max(3650).optional(),
+      newestMembersEnabled: z.boolean().optional(),
+      articlesEnabled: z.boolean().optional(),
+      newsEnabled: z.boolean().optional(),
+      businessDirectoryEnabled: z.boolean().optional(),
+      aiWriterEnabled: z.boolean().optional(),
+      newestMembersRequireCompleteProfile: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid site settings payload' });

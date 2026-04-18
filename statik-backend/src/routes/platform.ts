@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../lib/auth';
-import { countMutualFriends, getFriendUserIds, getMediaList, profileStats, readDb } from '../lib/store';
+import { countMutualFriends, getFriendUserIds, getMediaList, getProfileGarage, getPublishedContent, mapBusinessPublic, mapContentPublic, profileStats, readDb } from '../lib/store';
 
 function mapProfileCard(db: ReturnType<typeof readDb>, profile: any, viewerUserId?: string) {
   const stats = profileStats(db, profile.id);
@@ -78,6 +78,30 @@ export default function platformRouter() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
 
+    const newestMembers = db.profiles
+      .filter((profile) => db.site.newestMembersEnabled !== false && profile.discoveryVisible !== false && profile.newestMemberVisible !== false)
+      .filter((profile) => {
+        const user = db.users.find((item) => item.id === profile.userId);
+        if (!user || user.isBanned) return false;
+        if (user.suspensionEndsAt && new Date(user.suspensionEndsAt).getTime() > Date.now()) return false;
+        if (db.site.newestMembersRequireCompleteProfile && !profile.profileComplete) return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 6)
+      .map((profile) => {
+        const garage = getProfileGarage(db, profile.id, null);
+        return { ...mapProfileCard(db, profile), location: profile.showLocation === false ? '' : profile.location, featuredVehicle: garage.find((vehicle: any) => vehicle.featured) || garage[0] || null };
+      });
+
+    const latestArticles = db.site.articlesEnabled === false ? [] : getPublishedContent(db, 'article').slice(0, 3).map((item) => mapContentPublic(db, item));
+    const latestNews = db.site.newsEnabled === false ? [] : getPublishedContent(db, 'news').slice(0, 3).map((item) => mapContentPublic(db, item));
+    const trustedBusinesses = db.site.businessDirectoryEnabled === false ? [] : db.businessListings
+      .filter((business) => business.status === 'approved' && (business.trusted || business.sponsored || business.featured))
+      .sort((a, b) => Number(b.sponsored) - Number(a.sponsored) || Number(b.featured) - Number(a.featured) || b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 4)
+      .map((business) => mapBusinessPublic(db, business));
+
     return res.json({
       site: db.site,
       featuredProfiles,
@@ -86,10 +110,18 @@ export default function platformRouter() {
       upcomingEvents: upcoming.slice(0, 8).map((event) => ({ ...event, counts: eventCounts(db, event.id), media: getMediaList(db, event.mediaIds || []) })),
       eventCategories,
       publicCommunities,
+      newestMembers,
+      latestArticles,
+      latestNews,
+      trustedBusinesses,
       counts: {
         approvedEvents: approvedEvents.length,
         publicCommunities: db.communities.filter((community) => community.visibility === 'public' && community.discoverable).length,
         sponsoredEvents: approvedEvents.filter((event) => event.sponsored).length,
+        newestMembers: newestMembers.length,
+        publishedArticles: db.contentItems.filter((item) => item.type === 'article' && item.status === 'published').length,
+        publishedNews: db.contentItems.filter((item) => item.type === 'news' && item.status === 'published').length,
+        approvedBusinesses: db.businessListings.filter((item) => item.status === 'approved').length,
       },
       foundingPhase: db.users.length < 25,
       needsAdminBootstrap: db.users.length === 0,
@@ -117,6 +149,30 @@ export default function platformRouter() {
       .map((community) => mapCommunityPreview(community, viewer.user.id));
 
     const pendingRequests = db.friendRequests.filter((request) => request.toUserId === viewer.user.id && request.status === 'pending').length;
+
+    const newestMembers = db.profiles
+      .filter((profile) => db.site.newestMembersEnabled !== false && profile.discoveryVisible !== false && profile.newestMemberVisible !== false)
+      .filter((profile) => {
+        const user = db.users.find((item) => item.id === profile.userId);
+        if (!user || user.isBanned) return false;
+        if (user.suspensionEndsAt && new Date(user.suspensionEndsAt).getTime() > Date.now()) return false;
+        if (db.site.newestMembersRequireCompleteProfile && !profile.profileComplete) return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 6)
+      .map((profile) => {
+        const garage = getProfileGarage(db, profile.id, null);
+        return { ...mapProfileCard(db, profile), location: profile.showLocation === false ? '' : profile.location, featuredVehicle: garage.find((vehicle: any) => vehicle.featured) || garage[0] || null };
+      });
+
+    const latestArticles = db.site.articlesEnabled === false ? [] : getPublishedContent(db, 'article').slice(0, 3).map((item) => mapContentPublic(db, item));
+    const latestNews = db.site.newsEnabled === false ? [] : getPublishedContent(db, 'news').slice(0, 3).map((item) => mapContentPublic(db, item));
+    const trustedBusinesses = db.site.businessDirectoryEnabled === false ? [] : db.businessListings
+      .filter((business) => business.status === 'approved' && (business.trusted || business.sponsored || business.featured))
+      .sort((a, b) => Number(b.sponsored) - Number(a.sponsored) || Number(b.featured) - Number(a.featured) || b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 4)
+      .map((business) => mapBusinessPublic(db, business));
 
     return res.json({
       site: db.site,

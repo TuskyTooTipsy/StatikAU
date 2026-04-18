@@ -58,3 +58,30 @@ VITE_MAPBOX_TOKEN=...
 ```
 
 The SPA redirect is already configured. `/s/:slug` stays on statik.au, tracks through the backend resolver, then redirects inside the frontend.
+
+## STATIK master corrective v3 env additions
+
+Backend Railway must include:
+
+```bash
+PUBLIC_APP_URL=https://statik.au
+FRONTEND_URL=https://statik.au
+ALLOWED_ORIGINS=https://statik.au,https://www.statik.au
+PUBLIC_SERVER_URL=https://YOUR-RAILWAY-BACKEND-DOMAIN
+UPLOADS_DIR=/data/uploads
+STORAGE_PROVIDER=local
+AI_PROVIDER=openai
+AI_API_KEY=
+AI_MODEL=gpt-4o-mini
+GOOGLE_MAPS_API_KEY=
+```
+
+Frontend Netlify must include:
+
+```bash
+VITE_PUBLIC_APP_URL=https://statik.au
+VITE_API_BASE_URL=https://YOUR-RAILWAY-BACKEND-DOMAIN
+VITE_GOOGLE_MAPS_API_KEY=
+```
+
+For local Railway storage, mount a persistent Railway volume at `/data` before relying on production media persistence.

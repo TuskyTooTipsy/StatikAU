@@ -25,6 +25,11 @@ export const envSchema = z.object({
   STORAGE_SECRET_ACCESS_KEY: z.string().optional(),
   GOOGLE_MAPS_API_KEY: z.string().optional(),
   MAPBOX_TOKEN: z.string().optional(),
+  AI_PROVIDER: z.string().optional(),
+  AI_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('gpt-4o-mini'),
+  AI_DEFAULT_TONE: z.string().default('sharp, premium, automotive editorial'),
+  AI_MAX_TOKENS: z.string().default('1200'),
   UPLOADS_DIR: z.string().optional(),
   NODE_ENV: z.string().default('development'),
 });
@@ -74,6 +79,7 @@ export function getRuntimeDiagnostics() {
   if (env.STORAGE_PROVIDER === 'local' && !process.env.UPLOADS_DIR) warnings.push('Local storage is active. Configure a Railway volume and UPLOADS_DIR for persistent production uploads.');
   if (env.STORAGE_PROVIDER !== 'local' && (!env.STORAGE_BUCKET || !env.STORAGE_PUBLIC_URL)) warnings.push('Object storage selected but bucket/public URL settings are incomplete.');
   if (!env.GOOGLE_MAPS_API_KEY && !env.MAPBOX_TOKEN) warnings.push('Map provider token missing. Configure VITE_GOOGLE_MAPS_API_KEY on Netlify and GOOGLE_MAPS_API_KEY on Railway for event location autocomplete.');
+  if (!env.AI_API_KEY) warnings.push('AI writer is not configured. Manual article/news CMS still works.');
   return {
     publicAppUrl,
     publicServerUrl,
@@ -81,6 +87,8 @@ export function getRuntimeDiagnostics() {
     storageProvider: env.STORAGE_PROVIDER,
     mapProviderConfigured: Boolean(env.GOOGLE_MAPS_API_KEY || env.MAPBOX_TOKEN),
     storagePublicUrl: getStoragePublicUrl(),
+    aiProviderConfigured: Boolean(env.AI_API_KEY),
+    aiProvider: env.AI_PROVIDER || 'not configured',
     maxUploadBytes: getMaxUploadBytes(),
     nodeEnv: env.NODE_ENV,
     warnings,

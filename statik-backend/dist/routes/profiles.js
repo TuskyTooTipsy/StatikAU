@@ -117,6 +117,36 @@ function profilesRouter() {
         });
         return res.json(items.map((profile) => mapProfileSummary(db, profile, viewerUserId)).slice(0, 60));
     });
+    router.get('/discovery/newest', async (req, res) => {
+        const db = (0, store_1.readDb)();
+        if (db.site.newestMembersEnabled === false)
+            return res.json({ members: [] });
+        const limit = Math.min(Number(req.query.limit || 12), 30);
+        const items = db.profiles
+            .filter((profile) => profile.discoveryVisible !== false && profile.newestMemberVisible !== false)
+            .filter((profile) => {
+            const user = db.users.find((item) => item.id === profile.userId);
+            if (!user || user.isBanned)
+                return false;
+            if (user.suspensionEndsAt && new Date(user.suspensionEndsAt).getTime() > Date.now())
+                return false;
+            if (db.site.newestMembersRequireCompleteProfile && !profile.profileComplete)
+                return false;
+            return true;
+        })
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, limit)
+            .map((profile) => {
+            const garage = (0, store_1.getProfileGarage)(db, profile.id, null);
+            return {
+                ...mapProfileSummary(db, profile),
+                location: profile.showLocation === false ? '' : profile.location,
+                memberType: profile.memberType || 'car_enthusiast',
+                featuredVehicle: garage.find((vehicle) => vehicle.featured) || garage[0] || null,
+            };
+        });
+        return res.json({ enabled: db.site.newestMembersEnabled !== false, items });
+    });
     router.get('/me/garage', auth_1.requireAuth, async (req, res) => {
         const viewer = req.viewer;
         const db = (0, store_1.readDb)();
@@ -430,6 +460,14 @@ function profilesRouter() {
             currentlyBuilding: zod_1.z.string().max(120).optional().default(''),
             sceneTags: zod_1.z.array(zod_1.z.string().max(24)).max(10).optional().default([]),
             analyticsVisibility: zod_1.z.enum(['public', 'private']).optional().default('public'),
+            memberType: zod_1.z.enum(['car_enthusiast', 'bike_rider', 'photographer_videographer', 'business_owner', 'car_group_owner', 'event_host', 'workshop_vendor', 'spectator_fan', 'other']).optional().default('car_enthusiast'),
+            interestTags: zod_1.z.array(zod_1.z.string().max(32)).max(16).optional().default([]),
+            preferredEventTypes: zod_1.z.array(zod_1.z.string().max(40)).max(16).optional().default([]),
+            discoveryVisible: zod_1.z.boolean().optional().default(true),
+            newestMemberVisible: zod_1.z.boolean().optional().default(true),
+            showLocation: zod_1.z.boolean().optional().default(true),
+            showEventActivity: zod_1.z.boolean().optional().default(true),
+            showGroupAffiliations: zod_1.z.boolean().optional().default(true),
         });
         const parsed = schema.safeParse(req.body);
         if (!parsed.success)
@@ -442,7 +480,7 @@ function profilesRouter() {
                 const user = db.users.find((item) => item.id === viewer.user.id);
                 if (!profile || !user)
                     throw new Error('Profile not found');
-                Object.assign(profile, parsed.data);
+                Object.assign(profile, parsed.data, { profileComplete: Boolean(parsed.data.bio || parsed.data.location || parsed.data.primaryCar || parsed.data.about), updatedAt: (0, store_1.nowIso)() });
                 profile.slug = (0, store_1.uniqueSlug)(parsed.data.displayName, db.profiles.filter((item) => item.id !== profile.id).map((item) => item.slug));
                 user.displayName = parsed.data.displayName;
                 (0, store_1.logAudit)(db, viewer.user.id, 'update_profile', 'profile', profile.id);

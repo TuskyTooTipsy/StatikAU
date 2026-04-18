@@ -25,6 +25,9 @@ exports.getProfilePosts = getProfilePosts;
 exports.getCommunityPosts = getCommunityPosts;
 exports.getProfileShortLinks = getProfileShortLinks;
 exports.getProfileAffiliations = getProfileAffiliations;
+exports.getPublishedContent = getPublishedContent;
+exports.mapContentPublic = mapContentPublic;
+exports.mapBusinessPublic = mapBusinessPublic;
 exports.getShortLinkBySlug = getShortLinkBySlug;
 exports.findOrCreateShortLink = findOrCreateShortLink;
 exports.trackAnalyticsEvent = trackAnalyticsEvent;
@@ -61,6 +64,12 @@ function defaultDb() {
             approvalWorkflowDefault: 'manual',
             sponsorEventModuleEnabled: true,
             auditRetentionDays: 180,
+            newestMembersEnabled: true,
+            articlesEnabled: true,
+            newsEnabled: true,
+            businessDirectoryEnabled: true,
+            aiWriterEnabled: true,
+            newestMembersRequireCompleteProfile: false,
         },
         users: [],
         sessions: [],
@@ -121,6 +130,10 @@ function defaultDb() {
         ],
         eventImportRuns: [],
         eventImportItems: [],
+        contentItems: [],
+        contentRevisions: [],
+        aiGenerationLogs: [],
+        businessListings: [],
     };
 }
 function ensureDirs() {
@@ -140,6 +153,16 @@ function normalizeProfile(profile) {
         featuredVehicleId: profile.featuredVehicleId || undefined,
         featuredPostId: profile.featuredPostId || undefined,
         analyticsVisibility: profile.analyticsVisibility === 'private' ? 'private' : 'public',
+        memberType: profile.memberType || 'car_enthusiast',
+        interestTags: Array.isArray(profile.interestTags) ? profile.interestTags : [],
+        preferredEventTypes: Array.isArray(profile.preferredEventTypes) ? profile.preferredEventTypes : [],
+        discoveryVisible: profile.discoveryVisible !== false,
+        newestMemberVisible: profile.newestMemberVisible !== false,
+        profileComplete: Boolean(profile.profileComplete || profile.bio || profile.location || profile.primaryCar),
+        showLocation: profile.showLocation !== false,
+        showEventActivity: profile.showEventActivity !== false,
+        showGroupAffiliations: profile.showGroupAffiliations !== false,
+        updatedAt: profile.updatedAt || profile.createdAt || nowIso(),
     };
 }
 function normalizeCommunity(community) {
@@ -235,10 +258,75 @@ function normalizeEvent(event) {
         updatedAt: event.updatedAt || createdAt,
     };
 }
+function normalizeMedia(asset) {
+    const createdAt = asset.createdAt || nowIso();
+    return {
+        ...asset,
+        originalFilename: asset.originalFilename || asset.fileName || '',
+        displayTitle: asset.displayTitle || '',
+        caption: asset.caption || '',
+        altText: asset.altText || '',
+        thumbnailUrl: asset.thumbnailUrl || '',
+        status: asset.status || 'uploaded',
+        updatedAt: asset.updatedAt || createdAt,
+    };
+}
+function normalizeContent(item) {
+    const createdAt = item.createdAt || nowIso();
+    return {
+        ...item,
+        type: item.type === 'news' ? 'news' : 'article',
+        slug: item.slug || slugify(item.title || 'content'),
+        title: item.title || '',
+        excerpt: item.excerpt || '',
+        body: item.body || '',
+        galleryMediaIds: Array.isArray(item.galleryMediaIds) ? item.galleryMediaIds : [],
+        category: item.category || 'General',
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        status: ['draft', 'pending', 'published', 'scheduled', 'archived'].includes(item.status) ? item.status : 'draft',
+        featured: Boolean(item.featured),
+        sponsored: Boolean(item.sponsored),
+        relatedEventIds: Array.isArray(item.relatedEventIds) ? item.relatedEventIds : [],
+        relatedBusinessIds: Array.isArray(item.relatedBusinessIds) ? item.relatedBusinessIds : [],
+        relatedProfileIds: Array.isArray(item.relatedProfileIds) ? item.relatedProfileIds : [],
+        relatedCommunityIds: Array.isArray(item.relatedCommunityIds) ? item.relatedCommunityIds : [],
+        aiAssisted: Boolean(item.aiAssisted),
+        adminNotes: Array.isArray(item.adminNotes) ? item.adminNotes : [],
+        createdAt,
+        updatedAt: item.updatedAt || createdAt,
+    };
+}
+function normalizeBusiness(item) {
+    const createdAt = item.createdAt || nowIso();
+    return {
+        ...item,
+        slug: item.slug || slugify(item.businessName || 'business'),
+        businessName: item.businessName || '',
+        status: ['draft', 'pending', 'approved', 'rejected', 'suspended', 'archived'].includes(item.status) ? item.status : 'pending',
+        trusted: Boolean(item.trusted),
+        sponsored: Boolean(item.sponsored),
+        featured: Boolean(item.featured),
+        subcategories: Array.isArray(item.subcategories) ? item.subcategories : [],
+        services: Array.isArray(item.services) ? item.services : [],
+        specialties: Array.isArray(item.specialties) ? item.specialties : [],
+        socialLinks: Array.isArray(item.socialLinks) ? item.socialLinks : [],
+        galleryMediaIds: Array.isArray(item.galleryMediaIds) ? item.galleryMediaIds : [],
+        offers: Array.isArray(item.offers) ? item.offers : [],
+        linkedEventIds: Array.isArray(item.linkedEventIds) ? item.linkedEventIds : [],
+        linkedArticleIds: Array.isArray(item.linkedArticleIds) ? item.linkedArticleIds : [],
+        linkedNewsIds: Array.isArray(item.linkedNewsIds) ? item.linkedNewsIds : [],
+        linkedCommunityIds: Array.isArray(item.linkedCommunityIds) ? item.linkedCommunityIds : [],
+        contactCount: Number(item.contactCount || 0),
+        adminNotes: Array.isArray(item.adminNotes) ? item.adminNotes : [],
+        locationDetails: item.locationDetails && typeof item.locationDetails === 'object' ? item.locationDetails : null,
+        createdAt,
+        updatedAt: item.updatedAt || createdAt,
+    };
+}
 function normalizeDb(raw) {
     const db = { ...defaultDb(), ...raw };
     db.site = { ...defaultDb().site, ...(db.site || {}) };
-    db.users = (db.users || []).map((item) => ({ ...item, isBanned: Boolean(item.isBanned), suspensionEndsAt: item.suspensionEndsAt || null, moderationNote: item.moderationNote || '', featureEndsAt: item.featureEndsAt || null }));
+    db.users = (db.users || []).map((item) => ({ ...item, isBanned: Boolean(item.isBanned), suspensionEndsAt: item.suspensionEndsAt || null, moderationNote: item.moderationNote || '', featureEndsAt: item.featureEndsAt || null, termsAcceptedAt: item.termsAcceptedAt || null, lastOnboardingStep: item.lastOnboardingStep || null, onboardingCompleted: Boolean(item.onboardingCompleted) }));
     db.sessions = (db.sessions || []).map((item) => ({ ...item, lastSeenAt: item.lastSeenAt || item.createdAt || nowIso(), ip: item.ip || '', userAgent: item.userAgent || '' }));
     db.profiles = (db.profiles || []).map(normalizeProfile);
     db.events = (db.events || []).map(normalizeEvent);
@@ -251,7 +339,7 @@ function normalizeDb(raw) {
     db.profileLinks = (db.profileLinks || []).map((item) => ({ ...item, type: item.type || 'other', updatedAt: item.updatedAt || item.createdAt || nowIso() }));
     db.shortLinks = (db.shortLinks || []).map((item) => ({ ...item, clickCount: Number(item.clickCount || 0), qrScanCount: Number(item.qrScanCount || 0), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
     db.analyticsEvents = (db.analyticsEvents || []).map((item) => ({ ...item, source: item.source || 'direct' }));
-    db.mediaAssets = (db.mediaAssets || []).map((item) => ({ ...item, status: item.status || 'uploaded', updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+    db.mediaAssets = (db.mediaAssets || []).map(normalizeMedia);
     db.pendingUploads = (db.pendingUploads || []).map((item) => ({ ...item, status: item.status || 'pending' }));
     db.reports = db.reports || [];
     db.auditLogs = db.auditLogs || [];
@@ -265,6 +353,10 @@ function normalizeDb(raw) {
     }
     db.eventImportRuns = (db.eventImportRuns || []).map((item) => ({ ...item, importedCount: Number(item.importedCount || 0), duplicateCount: Number(item.duplicateCount || 0), errorCount: Number(item.errorCount || 0) }));
     db.eventImportItems = (db.eventImportItems || []).map((item) => ({ ...item, normalizedTags: Array.isArray(item.normalizedTags) ? item.normalizedTags : [], status: item.status || 'pending', createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+    db.contentItems = (db.contentItems || []).map(normalizeContent);
+    db.contentRevisions = (db.contentRevisions || []).map((item) => ({ ...item, createdAt: item.createdAt || nowIso(), snapshot: item.snapshot || {} }));
+    db.aiGenerationLogs = (db.aiGenerationLogs || []).map((item) => ({ ...item, createdAt: item.createdAt || nowIso() }));
+    db.businessListings = (db.businessListings || []).map(normalizeBusiness);
     return db;
 }
 function readDb() {
@@ -420,6 +512,37 @@ function getProfileAffiliations(db, userId) {
         region: community.region,
         role: community.ownerUserId === userId ? 'owner' : community.adminUserIds.includes(userId) ? 'admin' : 'member',
     }));
+}
+function getPublishedContent(db, type) {
+    const now = nowIso();
+    return db.contentItems
+        .filter((item) => (!type || item.type === type) && item.status === 'published' && (!item.scheduledFor || item.scheduledFor <= now))
+        .sort((a, b) => (b.publishedAt || b.updatedAt).localeCompare(a.publishedAt || a.updatedAt));
+}
+function mapContentPublic(db, item) {
+    const author = item.authorUserId ? db.profiles.find((profile) => profile.userId === item.authorUserId) : null;
+    return {
+        ...item,
+        authorDisplayName: item.authorDisplayName || author?.displayName || 'STATIK editorial',
+        heroMedia: getMedia(db, item.heroMediaId),
+        galleryMedia: getMediaList(db, item.galleryMediaIds),
+        relatedEvents: item.relatedEventIds.map((id) => db.events.find((event) => event.id === id && event.approvalStatus === 'approved')).filter(Boolean),
+        relatedBusinesses: item.relatedBusinessIds.map((id) => db.businessListings.find((business) => business.id === id && business.status === 'approved')).filter(Boolean),
+        relatedProfiles: item.relatedProfileIds.map((id) => db.profiles.find((profile) => profile.id === id)).filter(Boolean),
+        relatedCommunities: item.relatedCommunityIds.map((id) => db.communities.find((community) => community.id === id && community.visibility === 'public')).filter(Boolean),
+    };
+}
+function mapBusinessPublic(db, business) {
+    return {
+        ...business,
+        logoMedia: getMedia(db, business.logoMediaId),
+        bannerMedia: getMedia(db, business.bannerMediaId),
+        galleryMedia: getMediaList(db, business.galleryMediaIds),
+        linkedEvents: business.linkedEventIds.map((id) => db.events.find((event) => event.id === id && event.approvalStatus === 'approved')).filter(Boolean),
+        linkedArticles: business.linkedArticleIds.map((id) => db.contentItems.find((item) => item.id === id && item.status === 'published')).filter(Boolean),
+        linkedNews: business.linkedNewsIds.map((id) => db.contentItems.find((item) => item.id === id && item.status === 'published')).filter(Boolean),
+        linkedCommunities: business.linkedCommunityIds.map((id) => db.communities.find((community) => community.id === id && community.visibility === 'public')).filter(Boolean),
+    };
 }
 function getShortLinkBySlug(db, slug) {
     return db.shortLinks.find((item) => item.slug === slug) || null;

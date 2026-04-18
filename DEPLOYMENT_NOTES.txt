@@ -32,3 +32,10 @@ STATIK master corrective upgrade notes:
 - Google Maps location autocomplete uses VITE_GOOGLE_MAPS_API_KEY on Netlify.
 - Local upload persistence requires DATA_DIR=/data and UPLOADS_DIR=/data/uploads with a Railway volume.
 - Admin now includes Approval Bay, Messages, Media and Garage/Vehicles command pages.
+
+STATIK master corrective v3 notes:
+- Public share/QR URLs are canonicalized through PUBLIC_APP_URL=https://statik.au.
+- Backend/API/upload URLs must use PUBLIC_SERVER_URL on Railway.
+- Google Maps requires VITE_GOOGLE_MAPS_API_KEY on Netlify.
+- Local uploads require Railway volume persistence at /data with UPLOADS_DIR=/data/uploads.
+- AI Writer is admin-only and requires server-side AI_API_KEY; manual CMS still works without it.

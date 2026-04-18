@@ -12,7 +12,11 @@ export type MediaKind = 'image' | 'video';
 export type UploadStatus = 'pending' | 'uploaded' | 'failed' | 'deleted';
 export type VehicleType = 'car' | 'bike' | 'truck' | 'other';
 export type ProfileAnalyticsVisibility = 'public' | 'private';
-export type LinkTargetType = 'profile' | 'vehicle' | 'community' | 'event';
+export type LinkTargetType = 'profile' | 'vehicle' | 'community' | 'event' | 'article' | 'news' | 'business';
+export type ContentType = 'article' | 'news';
+export type ContentStatus = 'draft' | 'pending' | 'published' | 'scheduled' | 'archived';
+export type BusinessStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended' | 'archived';
+export type MemberType = 'car_enthusiast' | 'bike_rider' | 'photographer_videographer' | 'business_owner' | 'car_group_owner' | 'event_host' | 'workshop_vendor' | 'spectator_fan' | 'other';
 export type EventSourceType = 'user_submission' | 'imported' | 'statik_hosted' | 'partner' | 'manual_admin';
 export type EventPricingType = 'free' | 'ticketed' | 'invite_only' | 'other';
 export type EventVenueType = 'raceway' | 'street' | 'workshop' | 'showground' | 'dealer' | 'business' | 'indoor' | 'outdoor' | 'mixed' | 'other';
@@ -44,6 +48,12 @@ export interface SiteState {
   approvalWorkflowDefault?: 'manual' | 'trusted_auto_queue';
   sponsorEventModuleEnabled?: boolean;
   auditRetentionDays?: number;
+  newestMembersEnabled?: boolean;
+  articlesEnabled?: boolean;
+  newsEnabled?: boolean;
+  businessDirectoryEnabled?: boolean;
+  aiWriterEnabled?: boolean;
+  newestMembersRequireCompleteProfile?: boolean;
 }
 
 export interface UserRecord {
@@ -58,6 +68,9 @@ export interface UserRecord {
   suspensionEndsAt?: string | null;
   moderationNote?: string;
   featureEndsAt?: string | null;
+  termsAcceptedAt?: string | null;
+  lastOnboardingStep?: string | null;
+  onboardingCompleted?: boolean;
 }
 
 export interface SessionRecord {
@@ -89,7 +102,17 @@ export interface ProfileRecord {
   featuredVehicleId?: string;
   featuredPostId?: string;
   analyticsVisibility: ProfileAnalyticsVisibility;
+  memberType?: MemberType;
+  interestTags?: string[];
+  preferredEventTypes?: string[];
+  discoveryVisible?: boolean;
+  newestMemberVisible?: boolean;
+  profileComplete?: boolean;
+  showLocation?: boolean;
+  showEventActivity?: boolean;
+  showGroupAffiliations?: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface EventLocationRecord {
@@ -221,10 +244,18 @@ export interface CommunityMessageRecord {
 export interface MediaAssetRecord {
   id: string;
   ownerUserId: string;
-  ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event';
+  ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event' | 'content' | 'business';
   ownerId: string;
   kind: MediaKind;
   fileName: string;
+  originalFilename?: string;
+  displayTitle?: string;
+  caption?: string;
+  altText?: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
   mimeType: string;
   size: number;
   storageKey: string;
@@ -241,6 +272,14 @@ export interface PendingUploadRecord {
   ownerId: string;
   assetId: string;
   fileName: string;
+  originalFilename?: string;
+  displayTitle?: string;
+  caption?: string;
+  altText?: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
   mimeType: string;
   size: number;
   status: 'pending' | 'uploaded' | 'failed';
@@ -429,6 +468,97 @@ export interface EventImportItemRecord {
   adminNote?: string;
 }
 
+export interface ContentRevisionRecord {
+  id: string;
+  contentId: string;
+  actorUserId: string | null;
+  createdAt: string;
+  snapshot: Partial<ContentRecord>;
+  note?: string;
+}
+
+export interface ContentRecord {
+  id: string;
+  type: ContentType;
+  slug: string;
+  title: string;
+  excerpt: string;
+  body: string;
+  heroMediaId?: string;
+  galleryMediaIds: string[];
+  category: string;
+  tags: string[];
+  authorUserId?: string | null;
+  authorDisplayName?: string;
+  status: ContentStatus;
+  publishedAt?: string;
+  scheduledFor?: string;
+  createdAt: string;
+  updatedAt: string;
+  featured: boolean;
+  sponsored: boolean;
+  sponsorBusinessId?: string;
+  relatedEventIds: string[];
+  relatedBusinessIds: string[];
+  relatedProfileIds: string[];
+  relatedCommunityIds: string[];
+  aiAssisted: boolean;
+  metaTitle?: string;
+  metaDescription?: string;
+  adminNotes?: string[];
+}
+
+export interface AiGenerationLogRecord {
+  id: string;
+  actorUserId: string;
+  contentType: ContentType;
+  prompt: string;
+  sourceContext: string;
+  output: string;
+  provider: string;
+  model: string;
+  createdAt: string;
+}
+
+export interface BusinessListingRecord {
+  id: string;
+  slug: string;
+  businessName: string;
+  ownerUserId?: string | null;
+  status: BusinessStatus;
+  trusted: boolean;
+  sponsored: boolean;
+  featured: boolean;
+  featuredUntil?: string | null;
+  sponsoredUntil?: string | null;
+  category: string;
+  subcategories: string[];
+  description: string;
+  services: string[];
+  specialties: string[];
+  region: string;
+  address?: string;
+  locationDetails?: EventLocationRecord | null;
+  phone?: string;
+  email?: string;
+  website?: string;
+  socialLinks: string[];
+  logoMediaId?: string;
+  bannerMediaId?: string;
+  galleryMediaIds: string[];
+  openingHours?: string;
+  offers?: string[];
+  linkedEventIds: string[];
+  linkedArticleIds: string[];
+  linkedNewsIds: string[];
+  linkedCommunityIds: string[];
+  contactCount: number;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt?: string;
+  adminNotes?: string[];
+}
+
 export interface RuntimeDb {
   site: SiteState;
   users: UserRecord[];
@@ -453,6 +583,10 @@ export interface RuntimeDb {
   eventImportSources: EventImportSourceRecord[];
   eventImportRuns: EventImportRunRecord[];
   eventImportItems: EventImportItemRecord[];
+  contentItems: ContentRecord[];
+  contentRevisions: ContentRevisionRecord[];
+  aiGenerationLogs: AiGenerationLogRecord[];
+  businessListings: BusinessListingRecord[];
 }
 
 const DATA_DIR = env.UPLOADS_DIR ? path.dirname(env.UPLOADS_DIR) : path.join(process.cwd(), 'data');
@@ -476,6 +610,12 @@ function defaultDb(): RuntimeDb {
       approvalWorkflowDefault: 'manual',
       sponsorEventModuleEnabled: true,
       auditRetentionDays: 180,
+      newestMembersEnabled: true,
+      articlesEnabled: true,
+      newsEnabled: true,
+      businessDirectoryEnabled: true,
+      aiWriterEnabled: true,
+      newestMembersRequireCompleteProfile: false,
     },
     users: [],
     sessions: [],
@@ -536,6 +676,10 @@ function defaultDb(): RuntimeDb {
     ],
     eventImportRuns: [],
     eventImportItems: [],
+    contentItems: [],
+    contentRevisions: [],
+    aiGenerationLogs: [],
+    businessListings: [],
   };
 }
 
@@ -554,6 +698,16 @@ function normalizeProfile(profile: any): ProfileRecord {
     featuredVehicleId: profile.featuredVehicleId || undefined,
     featuredPostId: profile.featuredPostId || undefined,
     analyticsVisibility: profile.analyticsVisibility === 'private' ? 'private' : 'public',
+    memberType: profile.memberType || 'car_enthusiast',
+    interestTags: Array.isArray(profile.interestTags) ? profile.interestTags : [],
+    preferredEventTypes: Array.isArray(profile.preferredEventTypes) ? profile.preferredEventTypes : [],
+    discoveryVisible: profile.discoveryVisible !== false,
+    newestMemberVisible: profile.newestMemberVisible !== false,
+    profileComplete: Boolean(profile.profileComplete || profile.bio || profile.location || profile.primaryCar),
+    showLocation: profile.showLocation !== false,
+    showEventActivity: profile.showEventActivity !== false,
+    showGroupAffiliations: profile.showGroupAffiliations !== false,
+    updatedAt: profile.updatedAt || profile.createdAt || nowIso(),
   };
 }
 
@@ -653,10 +807,78 @@ function normalizeEvent(event: any): EventRecord {
   };
 }
 
+function normalizeMedia(asset: any): MediaAssetRecord {
+  const createdAt = asset.createdAt || nowIso();
+  return {
+    ...asset,
+    originalFilename: asset.originalFilename || asset.fileName || '',
+    displayTitle: asset.displayTitle || '',
+    caption: asset.caption || '',
+    altText: asset.altText || '',
+    thumbnailUrl: asset.thumbnailUrl || '',
+    status: asset.status || 'uploaded',
+    updatedAt: asset.updatedAt || createdAt,
+  };
+}
+
+function normalizeContent(item: any): ContentRecord {
+  const createdAt = item.createdAt || nowIso();
+  return {
+    ...item,
+    type: item.type === 'news' ? 'news' : 'article',
+    slug: item.slug || slugify(item.title || 'content'),
+    title: item.title || '',
+    excerpt: item.excerpt || '',
+    body: item.body || '',
+    galleryMediaIds: Array.isArray(item.galleryMediaIds) ? item.galleryMediaIds : [],
+    category: item.category || 'General',
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    status: ['draft', 'pending', 'published', 'scheduled', 'archived'].includes(item.status) ? item.status : 'draft',
+    featured: Boolean(item.featured),
+    sponsored: Boolean(item.sponsored),
+    relatedEventIds: Array.isArray(item.relatedEventIds) ? item.relatedEventIds : [],
+    relatedBusinessIds: Array.isArray(item.relatedBusinessIds) ? item.relatedBusinessIds : [],
+    relatedProfileIds: Array.isArray(item.relatedProfileIds) ? item.relatedProfileIds : [],
+    relatedCommunityIds: Array.isArray(item.relatedCommunityIds) ? item.relatedCommunityIds : [],
+    aiAssisted: Boolean(item.aiAssisted),
+    adminNotes: Array.isArray(item.adminNotes) ? item.adminNotes : [],
+    createdAt,
+    updatedAt: item.updatedAt || createdAt,
+  };
+}
+
+function normalizeBusiness(item: any): BusinessListingRecord {
+  const createdAt = item.createdAt || nowIso();
+  return {
+    ...item,
+    slug: item.slug || slugify(item.businessName || 'business'),
+    businessName: item.businessName || '',
+    status: ['draft', 'pending', 'approved', 'rejected', 'suspended', 'archived'].includes(item.status) ? item.status : 'pending',
+    trusted: Boolean(item.trusted),
+    sponsored: Boolean(item.sponsored),
+    featured: Boolean(item.featured),
+    subcategories: Array.isArray(item.subcategories) ? item.subcategories : [],
+    services: Array.isArray(item.services) ? item.services : [],
+    specialties: Array.isArray(item.specialties) ? item.specialties : [],
+    socialLinks: Array.isArray(item.socialLinks) ? item.socialLinks : [],
+    galleryMediaIds: Array.isArray(item.galleryMediaIds) ? item.galleryMediaIds : [],
+    offers: Array.isArray(item.offers) ? item.offers : [],
+    linkedEventIds: Array.isArray(item.linkedEventIds) ? item.linkedEventIds : [],
+    linkedArticleIds: Array.isArray(item.linkedArticleIds) ? item.linkedArticleIds : [],
+    linkedNewsIds: Array.isArray(item.linkedNewsIds) ? item.linkedNewsIds : [],
+    linkedCommunityIds: Array.isArray(item.linkedCommunityIds) ? item.linkedCommunityIds : [],
+    contactCount: Number(item.contactCount || 0),
+    adminNotes: Array.isArray(item.adminNotes) ? item.adminNotes : [],
+    locationDetails: item.locationDetails && typeof item.locationDetails === 'object' ? item.locationDetails : null,
+    createdAt,
+    updatedAt: item.updatedAt || createdAt,
+  };
+}
+
 function normalizeDb(raw: Partial<RuntimeDb>): RuntimeDb {
   const db = { ...defaultDb(), ...raw } as RuntimeDb;
   db.site = { ...defaultDb().site, ...(db.site || {}) };
-  db.users = (db.users || []).map((item: any) => ({ ...item, isBanned: Boolean(item.isBanned), suspensionEndsAt: item.suspensionEndsAt || null, moderationNote: item.moderationNote || '', featureEndsAt: item.featureEndsAt || null }));
+  db.users = (db.users || []).map((item: any) => ({ ...item, isBanned: Boolean(item.isBanned), suspensionEndsAt: item.suspensionEndsAt || null, moderationNote: item.moderationNote || '', featureEndsAt: item.featureEndsAt || null, termsAcceptedAt: item.termsAcceptedAt || null, lastOnboardingStep: item.lastOnboardingStep || null, onboardingCompleted: Boolean(item.onboardingCompleted) }));
   db.sessions = (db.sessions || []).map((item: any) => ({ ...item, lastSeenAt: item.lastSeenAt || item.createdAt || nowIso(), ip: item.ip || '', userAgent: item.userAgent || '' }));
   db.profiles = (db.profiles || []).map(normalizeProfile);
   db.events = (db.events || []).map(normalizeEvent);
@@ -669,7 +891,7 @@ function normalizeDb(raw: Partial<RuntimeDb>): RuntimeDb {
   db.profileLinks = (db.profileLinks || []).map((item: any) => ({ ...item, type: item.type || 'other', updatedAt: item.updatedAt || item.createdAt || nowIso() }));
   db.shortLinks = (db.shortLinks || []).map((item: any) => ({ ...item, clickCount: Number(item.clickCount || 0), qrScanCount: Number(item.qrScanCount || 0), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
   db.analyticsEvents = (db.analyticsEvents || []).map((item: any) => ({ ...item, source: item.source || 'direct' }));
-  db.mediaAssets = (db.mediaAssets || []).map((item: any) => ({ ...item, status: item.status || 'uploaded', updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+  db.mediaAssets = (db.mediaAssets || []).map(normalizeMedia);
   db.pendingUploads = (db.pendingUploads || []).map((item: any) => ({ ...item, status: item.status || 'pending' }));
   db.reports = db.reports || [];
   db.auditLogs = db.auditLogs || [];
@@ -683,6 +905,10 @@ function normalizeDb(raw: Partial<RuntimeDb>): RuntimeDb {
   }
   db.eventImportRuns = (db.eventImportRuns || []).map((item: any) => ({ ...item, importedCount: Number(item.importedCount || 0), duplicateCount: Number(item.duplicateCount || 0), errorCount: Number(item.errorCount || 0) }));
   db.eventImportItems = (db.eventImportItems || []).map((item: any) => ({ ...item, normalizedTags: Array.isArray(item.normalizedTags) ? item.normalizedTags : [], status: item.status || 'pending', createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || item.createdAt || nowIso() }));
+  db.contentItems = (db.contentItems || []).map(normalizeContent);
+  db.contentRevisions = (db.contentRevisions || []).map((item: any) => ({ ...item, createdAt: item.createdAt || nowIso(), snapshot: item.snapshot || {} }));
+  db.aiGenerationLogs = (db.aiGenerationLogs || []).map((item: any) => ({ ...item, createdAt: item.createdAt || nowIso() }));
+  db.businessListings = (db.businessListings || []).map(normalizeBusiness);
   return db;
 }
 
@@ -854,6 +1080,40 @@ export function getProfileAffiliations(db: RuntimeDb, userId: string) {
       region: community.region,
       role: community.ownerUserId === userId ? 'owner' : community.adminUserIds.includes(userId) ? 'admin' : 'member',
     }));
+}
+
+export function getPublishedContent(db: RuntimeDb, type?: ContentType) {
+  const now = nowIso();
+  return db.contentItems
+    .filter((item) => (!type || item.type === type) && item.status === 'published' && (!item.scheduledFor || item.scheduledFor <= now))
+    .sort((a, b) => (b.publishedAt || b.updatedAt).localeCompare(a.publishedAt || a.updatedAt));
+}
+
+export function mapContentPublic(db: RuntimeDb, item: ContentRecord) {
+  const author = item.authorUserId ? db.profiles.find((profile) => profile.userId === item.authorUserId) : null;
+  return {
+    ...item,
+    authorDisplayName: item.authorDisplayName || author?.displayName || 'STATIK editorial',
+    heroMedia: getMedia(db, item.heroMediaId),
+    galleryMedia: getMediaList(db, item.galleryMediaIds),
+    relatedEvents: item.relatedEventIds.map((id) => db.events.find((event) => event.id === id && event.approvalStatus === 'approved')).filter(Boolean),
+    relatedBusinesses: item.relatedBusinessIds.map((id) => db.businessListings.find((business) => business.id === id && business.status === 'approved')).filter(Boolean),
+    relatedProfiles: item.relatedProfileIds.map((id) => db.profiles.find((profile) => profile.id === id)).filter(Boolean),
+    relatedCommunities: item.relatedCommunityIds.map((id) => db.communities.find((community) => community.id === id && community.visibility === 'public')).filter(Boolean),
+  };
+}
+
+export function mapBusinessPublic(db: RuntimeDb, business: BusinessListingRecord) {
+  return {
+    ...business,
+    logoMedia: getMedia(db, business.logoMediaId),
+    bannerMedia: getMedia(db, business.bannerMediaId),
+    galleryMedia: getMediaList(db, business.galleryMediaIds),
+    linkedEvents: business.linkedEventIds.map((id) => db.events.find((event) => event.id === id && event.approvalStatus === 'approved')).filter(Boolean),
+    linkedArticles: business.linkedArticleIds.map((id) => db.contentItems.find((item) => item.id === id && item.status === 'published')).filter(Boolean),
+    linkedNews: business.linkedNewsIds.map((id) => db.contentItems.find((item) => item.id === id && item.status === 'published')).filter(Boolean),
+    linkedCommunities: business.linkedCommunityIds.map((id) => db.communities.find((community) => community.id === id && community.visibility === 'public')).filter(Boolean),
+  };
 }
 
 export function getShortLinkBySlug(db: RuntimeDb, slug: string) {

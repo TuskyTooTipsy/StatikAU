@@ -62,6 +62,8 @@ const links_1 = __importStar(require("./routes/links"));
 const analytics_1 = __importDefault(require("./routes/analytics"));
 const reports_1 = __importDefault(require("./routes/reports"));
 const vehicleRegistry_1 = __importDefault(require("./routes/vehicleRegistry"));
+const content_1 = __importDefault(require("./routes/content"));
+const businesses_1 = __importDefault(require("./routes/businesses"));
 const env_1 = require("./lib/env");
 const bootstrap_1 = require("./lib/bootstrap");
 const store_1 = require("./lib/store");
@@ -123,6 +125,8 @@ function createApp() {
     app.use('/api/analytics', (0, analytics_1.default)());
     app.use('/api/reports', (0, reports_1.default)());
     app.use('/api/vehicle-registry', (0, vehicleRegistry_1.default)());
+    app.use('/api/content', (0, content_1.default)());
+    app.use('/api/businesses', (0, businesses_1.default)());
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not Found' });
     });

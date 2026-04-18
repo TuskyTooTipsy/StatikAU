@@ -23,6 +23,8 @@ import linksRouter, { redirectRouter } from './routes/links';
 import analyticsRouter from './routes/analytics';
 import reportsRouter from './routes/reports';
 import vehicleRegistryRouter from './routes/vehicleRegistry';
+import contentRouter from './routes/content';
+import businessesRouter from './routes/businesses';
 import { env, getAllowedOrigins } from './lib/env';
 import { ensureBootstrapAdmin } from './lib/bootstrap';
 import { UPLOADS_DIR } from './lib/store';
@@ -94,6 +96,8 @@ export function createApp() {
   app.use('/api/analytics', analyticsRouter());
   app.use('/api/reports', reportsRouter());
   app.use('/api/vehicle-registry', vehicleRegistryRouter());
+  app.use('/api/content', contentRouter());
+  app.use('/api/businesses', businessesRouter());
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ error: 'Not Found' });

@@ -138,6 +138,34 @@ export default function profilesRouter() {
     return res.json(items.map((profile) => mapProfileSummary(db, profile, viewerUserId)).slice(0, 60));
   });
 
+
+  router.get('/discovery/newest', async (req, res) => {
+    const db = readDb();
+    if (db.site.newestMembersEnabled === false) return res.json({ members: [] });
+    const limit = Math.min(Number(req.query.limit || 12), 30);
+    const items = db.profiles
+      .filter((profile) => profile.discoveryVisible !== false && profile.newestMemberVisible !== false)
+      .filter((profile) => {
+        const user = db.users.find((item) => item.id === profile.userId);
+        if (!user || user.isBanned) return false;
+        if (user.suspensionEndsAt && new Date(user.suspensionEndsAt).getTime() > Date.now()) return false;
+        if (db.site.newestMembersRequireCompleteProfile && !profile.profileComplete) return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit)
+      .map((profile) => {
+        const garage = getProfileGarage(db, profile.id, null);
+        return {
+          ...mapProfileSummary(db, profile),
+          location: profile.showLocation === false ? '' : profile.location,
+          memberType: profile.memberType || 'car_enthusiast',
+          featuredVehicle: garage.find((vehicle: any) => vehicle.featured) || garage[0] || null,
+        };
+      });
+    return res.json({ enabled: db.site.newestMembersEnabled !== false, items });
+  });
+
   router.get('/me/garage', requireAuth, async (req, res) => {
     const viewer = (req as any).viewer;
     const db = readDb();
@@ -454,6 +482,14 @@ export default function profilesRouter() {
       currentlyBuilding: z.string().max(120).optional().default(''),
       sceneTags: z.array(z.string().max(24)).max(10).optional().default([]),
       analyticsVisibility: z.enum(['public', 'private']).optional().default('public'),
+      memberType: z.enum(['car_enthusiast', 'bike_rider', 'photographer_videographer', 'business_owner', 'car_group_owner', 'event_host', 'workshop_vendor', 'spectator_fan', 'other']).optional().default('car_enthusiast'),
+      interestTags: z.array(z.string().max(32)).max(16).optional().default([]),
+      preferredEventTypes: z.array(z.string().max(40)).max(16).optional().default([]),
+      discoveryVisible: z.boolean().optional().default(true),
+      newestMemberVisible: z.boolean().optional().default(true),
+      showLocation: z.boolean().optional().default(true),
+      showEventActivity: z.boolean().optional().default(true),
+      showGroupAffiliations: z.boolean().optional().default(true),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid profile payload' });
@@ -465,7 +501,7 @@ export default function profilesRouter() {
         const profile = db.profiles.find((item) => item.id === viewer.profile.id);
         const user = db.users.find((item) => item.id === viewer.user.id);
         if (!profile || !user) throw new Error('Profile not found');
-        Object.assign(profile, parsed.data);
+        Object.assign(profile, parsed.data, { profileComplete: Boolean(parsed.data.bio || parsed.data.location || parsed.data.primaryCar || parsed.data.about), updatedAt: nowIso() });
         profile.slug = uniqueSlug(parsed.data.displayName, db.profiles.filter((item) => item.id !== profile.id).map((item) => item.slug));
         user.displayName = parsed.data.displayName;
         logAudit(db, viewer.user.id, 'update_profile', 'profile', profile.id);
