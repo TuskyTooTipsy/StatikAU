@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import DashboardShell from '../../components/platform/DashboardShell';
 import { adminNav } from '../../data/platform';
 import { networkApi } from '../../api/network';
-import type { AdminOverviewPayload, EventImportItem, NetworkEvent } from '../../types/network';
+import type { AdminOverviewPayload, EventImportItem, NetworkEvent, ContentItem, BusinessListing } from '../../types/network';
 
-type QueueFilter = 'all' | 'events' | 'imports' | 'reports' | 'posts';
+type QueueFilter = 'all' | 'events' | 'imports' | 'reports' | 'posts' | 'content' | 'businesses';
 
 export default function AdminApprovalBay() {
   const [bay, setBay] = useState<AdminOverviewPayload['approveBay'] | null>(null);
@@ -33,6 +33,8 @@ export default function AdminApprovalBay() {
       ...(bay?.imports || []).map((item) => ({ type: 'imports' as const, id: item.id, title: item.title, meta: `${item.sourceName} · ${item.date}`, body: item.description || item.sourceUrl, raw: item })),
       ...(bay?.reports || []).map((report) => ({ type: 'reports' as const, id: report.id, title: `${report.targetType} report`, meta: `${report.status} · ${new Date(report.createdAt).toLocaleString()}`, body: report.reason, raw: report })),
       ...(bay?.posts || []).map((post) => ({ type: 'posts' as const, id: post.id, title: post.queueType.replace('_', ' '), meta: new Date(post.createdAt).toLocaleString(), body: post.caption, raw: post })),
+      ...(bay?.content || []).map((item) => ({ type: 'content' as const, id: item.id, title: item.title, meta: `${item.type} · ${item.status} · ${item.category || 'uncategorised'}`, body: item.excerpt || item.body || 'No excerpt supplied.', raw: item })),
+      ...(bay?.businesses || []).map((biz) => ({ type: 'businesses' as const, id: biz.id, title: biz.businessName, meta: `${biz.status} · ${biz.category || 'uncategorised'} · ${biz.region || 'No region'}`, body: biz.description || biz.services?.join(', ') || 'No description supplied.', raw: biz })),
     ];
     return items
       .filter((item) => filter === 'all' || item.type === filter)
@@ -76,6 +78,57 @@ export default function AdminApprovalBay() {
     }
   }
 
+
+  async function publishContent(item: ContentItem) {
+    setBusyId(item.id);
+    try {
+      await networkApi.updateAdminContent(item.id, { status: 'published', publishedAt: item.publishedAt || new Date().toISOString() });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function archiveContent(item: ContentItem) {
+    const adminNotes = window.prompt('Reason / editorial note?', 'Archived during approval review.') || '';
+    setBusyId(item.id);
+    try {
+      await networkApi.updateAdminContent(item.id, { status: 'archived', adminNotes });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function approveBusiness(item: BusinessListing) {
+    setBusyId(item.id);
+    try {
+      await networkApi.updateAdminBusiness(item.id, { status: 'approved', approvedAt: item.approvedAt || new Date().toISOString() });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function rejectBusiness(item: BusinessListing) {
+    const adminNotes = window.prompt('Reason / business approval note?', 'Rejected during business directory review.') || '';
+    setBusyId(item.id);
+    try {
+      await networkApi.updateAdminBusiness(item.id, { status: 'rejected', adminNotes });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function rejectImport(item: EventImportItem) {
     const adminNote = window.prompt('Reason / duplicate / rejection note?', 'Rejected during import review.') || '';
     setBusyId(item.id);
@@ -108,6 +161,8 @@ export default function AdminApprovalBay() {
             <option value="imports">scraped/imported events</option>
             <option value="reports">reports</option>
             <option value="posts">posts/content</option>
+            <option value="content">articles/news</option>
+            <option value="businesses">business directory</option>
           </select>
           <input className="field-sharp" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, source, reason, category, body…" />
         </div>
@@ -136,6 +191,18 @@ export default function AdminApprovalBay() {
                     <>
                       <button disabled={busyId === item.id} className="btn-primary h-10 px-4 text-xs" onClick={() => void publishImport(item.raw as EventImportItem)}>Approve + publish</button>
                       <button disabled={busyId === item.id} className="btn-secondary h-10 px-4 text-xs" onClick={() => void rejectImport(item.raw as EventImportItem)}>Reject</button>
+                    </>
+                  ) : null}
+                  {item.type === 'content' ? (
+                    <>
+                      <button disabled={busyId === item.id} className="btn-primary h-10 px-4 text-xs" onClick={() => void publishContent(item.raw as ContentItem)}>Publish</button>
+                      <button disabled={busyId === item.id} className="btn-secondary h-10 px-4 text-xs" onClick={() => void archiveContent(item.raw as ContentItem)}>Archive</button>
+                    </>
+                  ) : null}
+                  {item.type === 'businesses' ? (
+                    <>
+                      <button disabled={busyId === item.id} className="btn-primary h-10 px-4 text-xs" onClick={() => void approveBusiness(item.raw as BusinessListing)}>Approve</button>
+                      <button disabled={busyId === item.id} className="btn-secondary h-10 px-4 text-xs" onClick={() => void rejectBusiness(item.raw as BusinessListing)}>Reject</button>
                     </>
                   ) : null}
                 </div>

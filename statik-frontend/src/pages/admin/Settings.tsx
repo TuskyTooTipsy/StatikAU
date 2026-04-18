@@ -161,6 +161,44 @@ export default function AdminSettings() {
           </div>
         </div>
 
+
+        <div className="panel-cut p-6 md:p-8 xl:col-span-2">
+          <p className="eyebrow">Content, members, and business directory</p>
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="panel-blade">
+              <h3>Newest members module</h3>
+              <p className="mt-3 text-sm leading-7 text-silver/68">Show real opted-in members on discovery/home modules.</p>
+              <button type="button" onClick={() => void save('newestMembersEnabled', { newestMembersEnabled: !site?.newestMembersEnabled })} className="btn-secondary mt-5 h-11 px-5 text-xs">{savingKey === 'newestMembersEnabled' ? 'Saving…' : site?.newestMembersEnabled ? 'Disable newest members' : 'Enable newest members'}</button>
+            </div>
+            <div className="panel-blade">
+              <h3>Require complete profile</h3>
+              <p className="mt-3 text-sm leading-7 text-silver/68">Hide incomplete profiles from newest member discovery.</p>
+              <button type="button" onClick={() => void save('newestMembersRequireCompleteProfile', { newestMembersRequireCompleteProfile: !site?.newestMembersRequireCompleteProfile })} className="btn-secondary mt-5 h-11 px-5 text-xs">{savingKey === 'newestMembersRequireCompleteProfile' ? 'Saving…' : site?.newestMembersRequireCompleteProfile ? 'Allow incomplete profiles' : 'Require complete profiles'}</button>
+            </div>
+            <div className="panel-blade">
+              <h3>Articles</h3>
+              <p className="mt-3 text-sm leading-7 text-silver/68">Public articles only display once published by admin.</p>
+              <button type="button" onClick={() => void save('articlesEnabled', { articlesEnabled: !site?.articlesEnabled })} className="btn-secondary mt-5 h-11 px-5 text-xs">{savingKey === 'articlesEnabled' ? 'Saving…' : site?.articlesEnabled ? 'Disable articles' : 'Enable articles'}</button>
+            </div>
+            <div className="panel-blade">
+              <h3>News</h3>
+              <p className="mt-3 text-sm leading-7 text-silver/68">Public news only displays once published by admin.</p>
+              <button type="button" onClick={() => void save('newsEnabled', { newsEnabled: !site?.newsEnabled })} className="btn-secondary mt-5 h-11 px-5 text-xs">{savingKey === 'newsEnabled' ? 'Saving…' : site?.newsEnabled ? 'Disable news' : 'Enable news'}</button>
+            </div>
+            <div className="panel-blade">
+              <h3>Business directory</h3>
+              <p className="mt-3 text-sm leading-7 text-silver/68">Approved/trusted/sponsored businesses only. Public spam never self-publishes.</p>
+              <button type="button" onClick={() => void save('businessDirectoryEnabled', { businessDirectoryEnabled: !site?.businessDirectoryEnabled })} className="btn-secondary mt-5 h-11 px-5 text-xs">{savingKey === 'businessDirectoryEnabled' ? 'Saving…' : site?.businessDirectoryEnabled ? 'Disable directory' : 'Enable directory'}</button>
+            </div>
+            <div className="panel-blade">
+              <h3>AI writer</h3>
+              <p className="mt-3 text-sm leading-7 text-silver/68">Admin-only draft generation. Never auto-publishes.</p>
+              <button type="button" onClick={() => void save('aiWriterEnabled', { aiWriterEnabled: !site?.aiWriterEnabled })} className="btn-secondary mt-5 h-11 px-5 text-xs">{savingKey === 'aiWriterEnabled' ? 'Saving…' : site?.aiWriterEnabled ? 'Disable AI writer' : 'Enable AI writer'}</button>
+              <p className="mt-3 text-xs uppercase tracking-[0.18em] text-silver/45">{diagnostics?.aiProviderConfigured ? `configured: ${diagnostics.aiProvider}` : 'AI key not configured'}</p>
+            </div>
+          </div>
+        </div>
+
         <div className="panel-cut p-6 md:p-8 xl:col-span-2">
           <p className="eyebrow">Brand + provider settings</p>
           <div className="mt-6 grid gap-4 md:grid-cols-2">

@@ -23,11 +23,27 @@ export default function AdminMedia() {
 
   const media = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return (overview?.media || []).filter((item) => !needle || [item.fileName, item.ownerType, item.ownerId, item.ownerUserId, item.mimeType].join(' ').toLowerCase().includes(needle));
+    return (overview?.media || []).filter((item) => !needle || [item.displayTitle, item.caption, item.altText, item.originalFilename || item.fileName, item.ownerType, item.ownerId, item.ownerUserId, item.mimeType].join(' ').toLowerCase().includes(needle));
   }, [overview, q]);
 
+
+  async function editMetadata(item: MediaAsset) {
+    const displayTitle = window.prompt('Display title', item.displayTitle || '') ?? (item.displayTitle || '');
+    const caption = window.prompt('Caption', item.caption || '') ?? (item.caption || '');
+    const altText = window.prompt('Alt text', item.altText || displayTitle || caption || '') ?? (item.altText || '');
+    setBusyId(item.id);
+    try {
+      await networkApi.updateMedia(item.id, { displayTitle, caption, altText });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function remove(item: MediaAsset) {
-    if (!window.confirm(`Remove media asset ${item.fileName || item.id}? This is audit logged.`)) return;
+    if (!window.confirm(`Remove media asset ${item.displayTitle || item.originalFilename || item.id}? This is audit logged.`)) return;
     setBusyId(item.id);
     try {
       await networkApi.adminDeleteMedia(item.id);
@@ -56,12 +72,13 @@ export default function AdminMedia() {
           {media.map((item) => (
             <article key={item.id} className="panel-blade">
               <div className="aspect-video overflow-hidden border border-white/10 bg-black/40">
-                {item.kind === 'video' ? <video src={item.url} className="h-full w-full object-cover" controls /> : <img src={item.url} alt={item.fileName} className="h-full w-full object-cover" />}
+                {item.kind === 'video' ? <video src={item.url} className="h-full w-full object-cover" controls /> : <img src={item.url} alt={item.altText || item.displayTitle || item.originalFilename || 'Media asset'} className="h-full w-full object-cover" />}
               </div>
-              <h3 className="mt-4 truncate text-sm uppercase tracking-[0.12em] text-bone">{item.fileName}</h3>
+              <h3 className="mt-4 truncate text-sm uppercase tracking-[0.12em] text-bone">{item.displayTitle || item.caption || item.originalFilename || item.fileName}</h3>
               <p className="mt-2 font-mono text-xs text-silver/45">{item.ownerType} · {item.ownerId}</p>
               <p className="mt-1 font-mono text-xs text-silver/45">{item.mimeType} · {Math.round(item.size / 1024)} KB</p>
-              <button disabled={busyId === item.id} className="btn-secondary mt-4 h-10 px-4 text-xs" onClick={() => void remove(item)}>Remove media</button>
+              {item.originalFilename ? <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-silver/35">original: {item.originalFilename}</p> : null}
+              <div className="mt-4 flex flex-wrap gap-2"><button disabled={busyId === item.id} className="btn-secondary h-10 px-4 text-xs" onClick={() => void editMetadata(item)}>Edit metadata</button><button disabled={busyId === item.id} className="btn-secondary h-10 px-4 text-xs" onClick={() => void remove(item)}>Remove media</button></div>
             </article>
           ))}
         </div>

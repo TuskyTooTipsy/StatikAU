@@ -31,6 +31,8 @@ export interface RuntimeDiagnostics {
   storageProvider: string;
   mapProviderConfigured?: boolean;
   storagePublicUrl: string;
+  aiProviderConfigured?: boolean;
+  aiProvider?: string;
   maxUploadBytes: number;
   nodeEnv: string;
   warnings: string[];
@@ -50,6 +52,12 @@ export interface NetworkSiteState {
   approvalWorkflowDefault?: 'manual' | 'trusted_auto_queue';
   sponsorEventModuleEnabled?: boolean;
   auditRetentionDays?: number;
+  newestMembersEnabled?: boolean;
+  articlesEnabled?: boolean;
+  newsEnabled?: boolean;
+  businessDirectoryEnabled?: boolean;
+  aiWriterEnabled?: boolean;
+  newestMembersRequireCompleteProfile?: boolean;
 }
 
 export interface NetworkUser {
@@ -63,10 +71,15 @@ export interface NetworkUser {
 export interface MediaAsset {
   id: string;
   ownerUserId: string;
-  ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event';
+  ownerType: 'profile' | 'vehicle' | 'profile_post' | 'community' | 'community_post' | 'event' | 'content' | 'business';
   ownerId: string;
   kind: 'image' | 'video';
   fileName: string;
+  originalFilename?: string;
+  displayTitle?: string;
+  caption?: string;
+  altText?: string;
+  thumbnailUrl?: string;
   mimeType: string;
   size: number;
   url: string;
@@ -88,7 +101,7 @@ export interface NetworkProfileLink {
 export interface NetworkShortLink {
   id: string;
   slug: string;
-  targetType: 'profile' | 'vehicle' | 'community' | 'event';
+  targetType: 'profile' | 'vehicle' | 'community' | 'event' | 'article' | 'news' | 'business';
   targetId: string;
   ownerUserId: string;
   clickCount: number;
@@ -255,7 +268,17 @@ export interface NetworkProfile {
   featuredVehicleId?: string;
   featuredPostId?: string;
   analyticsVisibility?: 'public' | 'private';
+  memberType?: 'car_enthusiast' | 'bike_rider' | 'photographer_videographer' | 'business_owner' | 'car_group_owner' | 'event_host' | 'workshop_vendor' | 'spectator_fan' | 'other';
+  interestTags?: string[];
+  preferredEventTypes?: string[];
+  discoveryVisible?: boolean;
+  newestMemberVisible?: boolean;
+  profileComplete?: boolean;
+  showLocation?: boolean;
+  showEventActivity?: boolean;
+  showGroupAffiliations?: boolean;
   createdAt: string;
+  updatedAt?: string;
   stats?: {
     friendCount: number;
     communityCount: number;
@@ -267,6 +290,7 @@ export interface NetworkProfile {
   mutualFriends?: number;
   isFriend?: boolean;
   role?: 'user' | 'admin';
+  featuredVehicle?: GarageVehicle | null;
   garage?: GarageVehicle[];
   posts?: ProfilePost[];
   affiliations?: Array<{
@@ -386,6 +410,78 @@ export interface FriendsPayload {
   outgoing: FriendRequestEnvelope[];
 }
 
+export interface ContentItem {
+  id: string;
+  type: 'article' | 'news';
+  slug: string;
+  title: string;
+  excerpt: string;
+  body: string;
+  heroMediaId?: string;
+  galleryMediaIds: string[];
+  category: string;
+  tags: string[];
+  authorUserId?: string | null;
+  authorDisplayName?: string;
+  status: 'draft' | 'pending' | 'published' | 'scheduled' | 'archived';
+  publishedAt?: string;
+  scheduledFor?: string;
+  createdAt: string;
+  updatedAt: string;
+  featured: boolean;
+  sponsored: boolean;
+  sponsorBusinessId?: string;
+  relatedEventIds: string[];
+  relatedBusinessIds: string[];
+  relatedProfileIds: string[];
+  relatedCommunityIds: string[];
+  aiAssisted: boolean;
+  metaTitle?: string;
+  metaDescription?: string;
+  heroMedia?: MediaAsset | null;
+  galleryMedia?: MediaAsset[];
+  canonicalShareUrl?: string;
+  shortLink?: NetworkShortLink;
+}
+
+export interface BusinessListing {
+  id: string;
+  slug: string;
+  businessName: string;
+  ownerUserId?: string | null;
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'suspended' | 'archived';
+  trusted: boolean;
+  sponsored: boolean;
+  featured: boolean;
+  featuredUntil?: string | null;
+  sponsoredUntil?: string | null;
+  category: string;
+  subcategories: string[];
+  description: string;
+  services: string[];
+  specialties: string[];
+  region: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  socialLinks: string[];
+  logoMediaId?: string;
+  bannerMediaId?: string;
+  galleryMediaIds: string[];
+  openingHours?: string;
+  offers?: string[];
+  contactCount: number;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt?: string;
+  logoMedia?: MediaAsset | null;
+  bannerMedia?: MediaAsset | null;
+  galleryMedia?: MediaAsset[];
+  canonicalShareUrl?: string;
+  shortLink?: NetworkShortLink;
+}
+
 export interface PublicPlatformPayload {
   site: NetworkSiteState;
   featuredProfiles: NetworkProfile[];
@@ -394,10 +490,18 @@ export interface PublicPlatformPayload {
   upcomingEvents?: NetworkEvent[];
   eventCategories?: Array<{ label: string; count: number }>;
   publicCommunities: CommunityPreview[];
+  newestMembers?: NetworkProfile[];
+  latestArticles?: ContentItem[];
+  latestNews?: ContentItem[];
+  trustedBusinesses?: BusinessListing[];
   counts: {
     approvedEvents: number;
     publicCommunities: number;
     sponsoredEvents?: number;
+    newestMembers?: number;
+    publishedArticles?: number;
+    publishedNews?: number;
+    approvedBusinesses?: number;
   };
   foundingPhase: boolean;
   needsAdminBootstrap: boolean;
@@ -459,6 +563,9 @@ export interface AdminOverviewPayload {
   media: MediaAsset[];
   vehicles?: GarageVehicle[];
   shortLinks?: NetworkShortLink[];
+  contentItems?: ContentItem[];
+  businessListings?: BusinessListing[];
+  aiGenerationLogs?: Array<{ id: string; actorUserId: string; contentType: 'article' | 'news'; prompt: string; sourceContext: string; output: string; provider: string; model: string; createdAt: string }>;
   auditLogs: Array<{
     id: string;
     actorUserId: string | null;
@@ -473,6 +580,8 @@ export interface AdminOverviewPayload {
     events: NetworkEvent[];
     imports: EventImportItem[];
     reports: Array<{ id: string; targetType: string; targetId: string; reason: string; status: string; createdAt: string; note?: string }>;
+    content?: ContentItem[];
+    businesses?: BusinessListing[];
     posts: Array<{ id: string; queueType: string; caption: string; createdAt: string }>;
   };
   importSources?: EventImportSource[];
@@ -561,6 +670,7 @@ export interface AdminUserDetail extends AdminUserSummary {
   communityPosts: CommunityPost[];
   messages: CommunityMessage[];
   shortLinks: NetworkShortLink[];
+  businesses?: BusinessListing[];
 }
 
 export interface AdminMessageRecord extends CommunityMessage {

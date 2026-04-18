@@ -29,13 +29,15 @@ export default function AdminOverviewPage() {
       <div className="page-hero-cut p-6 md:p-8 xl:p-10">
         <p className="eyebrow">Admin control</p>
         <h1 className="headline-lg mt-3">Moderate the live network, media, group identity, and event approvals without fake operating states.</h1>
-        <div className="mt-6 grid gap-4 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-6 grid gap-4 sm:grid-cols-3 xl:grid-cols-8">
           <div className="stat-block"><span className="stat-value">{data.counts.users}</span><span className="stat-label">users</span></div>
           <div className="stat-block"><span className="stat-value">{data.counts.communities}</span><span className="stat-label">groups</span></div>
           <div className="stat-block"><span className="stat-value">{data.counts.vehicles}</span><span className="stat-label">builds</span></div>
           <div className="stat-block"><span className="stat-value">{data.counts.posts}</span><span className="stat-label">posts</span></div>
           <div className="stat-block"><span className="stat-value">{data.counts.media}</span><span className="stat-label">media</span></div>
           <div className="stat-block"><span className="stat-value">{data.counts.openReports}</span><span className="stat-label">open reports</span></div>
+          <div className="stat-block"><span className="stat-value">{data.counts.pendingBusinesses || 0}</span><span className="stat-label">business queue</span></div>
+          <div className="stat-block"><span className="stat-value">{data.counts.draftContent || 0}</span><span className="stat-label">content drafts</span></div>
         </div>
       </div>
 
@@ -193,9 +195,9 @@ export default function AdminOverviewPage() {
               <div key={asset.id} className="panel-blade">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    {asset.kind === 'video' ? <video src={asset.url} className="h-16 w-24 bg-black object-cover" /> : <img src={asset.url} alt={asset.fileName} className="h-16 w-24 object-cover" />}
+                    {asset.kind === 'video' ? <video src={asset.url} className="h-16 w-24 bg-black object-cover" /> : <img src={asset.url} alt={asset.altText || asset.displayTitle || asset.originalFilename || 'Media asset'} className="h-16 w-24 object-cover" />}
                     <div>
-                      <h3>{asset.fileName}</h3>
+                      <h3>{asset.displayTitle || asset.caption || asset.originalFilename || asset.fileName}</h3>
                       <p className="mt-2 text-sm text-silver/70">{asset.ownerType} • {(asset.size / 1024 / 1024).toFixed(2)} MB</p>
                       <p className="mt-2 text-xs uppercase tracking-[0.2em] text-silver/54">{new Date(asset.createdAt).toLocaleString()}</p>
                     </div>

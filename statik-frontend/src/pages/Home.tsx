@@ -160,6 +160,55 @@ export default function Home() {
         </div>
       </section>
 
+
+      <section className="shell mt-16">
+        <div className="grid gap-6 xl:grid-cols-3">
+          <div className="panel-cut p-6 md:p-8">
+            <div className="flex items-end justify-between gap-4">
+              <div><p className="eyebrow">Newest members</p><h2 className="headline-md mt-3">Fresh profiles joining the scene.</h2></div>
+              <Link to="/members" className="btn-secondary h-11 px-4 text-[11px]">Member hub</Link>
+            </div>
+            <div className="mt-6 grid gap-3">
+              {data?.newestMembers?.length ? data.newestMembers.slice(0, 5).map((profile) => (
+                <Link key={profile.id} to={`/profiles/${profile.slug}`} className="panel-blade">
+                  <div className="flex items-center gap-3">
+                    {profile.avatarUrl ? <img src={profile.avatarUrl} alt={`${profile.displayName} avatar`} className="h-12 w-12 object-cover" /> : <div className="h-12 w-12 border border-white/10 bg-white/[0.04]" />}
+                    <div className="min-w-0"><h3 className="truncate">{profile.displayName}</h3><p className="mt-1 text-xs uppercase tracking-[0.18em] text-silver/50">{profile.memberType?.replace(/_/g, ' ') || 'member'} {profile.location ? `• ${profile.location}` : ''}</p></div>
+                  </div>
+                  {profile.featuredVehicle ? <p className="mt-3 text-sm text-silver/64">Bay: {[profile.featuredVehicle.year, profile.featuredVehicle.make, profile.featuredVehicle.model].filter(Boolean).join(' ')}</p> : null}
+                </Link>
+              )) : <EmptyPanel eyebrow="Members" title="No visible newest members yet" body="Members appear here only when they opt into discovery and pass account visibility checks." />}
+            </div>
+          </div>
+
+          <div className="panel-cut p-6 md:p-8">
+            <div className="flex items-end justify-between gap-4"><div><p className="eyebrow">Articles / News</p><h2 className="headline-md mt-3">Editorial around the event layer.</h2></div><Link to="/articles" className="btn-secondary h-11 px-4 text-[11px]">Open</Link></div>
+            <div className="mt-6 grid gap-3">
+              {[...(data?.latestArticles || []), ...(data?.latestNews || [])].slice(0, 5).length ? [...(data?.latestArticles || []), ...(data?.latestNews || [])].slice(0, 5).map((item) => (
+                <Link key={item.id} to={`/${item.type === 'news' ? 'news' : 'articles'}/${item.slug}`} className="panel-blade">
+                  <div className="flex flex-wrap gap-2"><span className="status-chip">{item.type}</span><span className="status-chip">{item.category}</span></div>
+                  <h3 className="mt-3">{item.title}</h3>
+                  <p className="mt-2 line-clamp-2 text-sm text-silver/64">{item.excerpt}</p>
+                </Link>
+              )) : <EmptyPanel eyebrow="Editorial" title="No published editorial yet" body="Articles and news stay empty until admin publishes real content." />}
+            </div>
+          </div>
+
+          <div className="panel-cut p-6 md:p-8">
+            <div className="flex items-end justify-between gap-4"><div><p className="eyebrow">Trusted businesses</p><h2 className="headline-md mt-3">Approved services around the scene.</h2></div><Link to="/businesses" className="btn-secondary h-11 px-4 text-[11px]">Directory</Link></div>
+            <div className="mt-6 grid gap-3">
+              {data?.trustedBusinesses?.length ? data.trustedBusinesses.slice(0, 4).map((business) => (
+                <Link key={business.id} to={`/businesses/${business.slug}`} className="panel-blade">
+                  <div className="flex flex-wrap gap-2"><span className="status-chip">{business.category}</span>{business.trusted ? <span className="status-chip">trusted</span> : null}{business.sponsored ? <span className="status-chip">sponsored</span> : null}</div>
+                  <h3 className="mt-3">{business.businessName}</h3>
+                  <p className="mt-2 text-sm text-silver/64">{business.region || business.address || 'Location not listed'}</p>
+                </Link>
+              )) : <EmptyPanel eyebrow="Directory" title="No trusted businesses yet" body="Only approved/trusted/sponsored real listings will be surfaced here." />}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="shell mt-16">
         <div className="panel-cut p-6 md:p-8">
           <div className="flex items-end justify-between gap-4">

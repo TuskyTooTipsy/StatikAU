@@ -106,7 +106,7 @@ export default function PublicProfilePage() {
                   <div className="flex flex-wrap gap-2">{vehicle.statusTags.map((tag) => <span key={tag} className="status-chip">{tag}</span>)}</div>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-silver/72">{vehicle.description || 'No build notes yet.'}</p>
-                {vehicle.heroMedia ? <div className="mt-4 overflow-hidden border border-white/10"><img src={vehicle.heroMedia.url} alt={vehicle.heroMedia.fileName} className="h-56 w-full object-cover" /></div> : null}
+                {vehicle.heroMedia ? <div className="mt-4 overflow-hidden border border-white/10"><img src={vehicle.heroMedia.url} alt={vehicle.heroMedia.altText || vehicle.heroMedia.displayTitle || `${vehicle.nickname || vehicle.model || 'Vehicle'} media`} className="h-56 w-full object-cover" /></div> : null}
               </button>
             )) : <EmptyPanel eyebrow="Garage" title="No vehicles added yet" body="This member has not published any machine dossiers yet." />}
           </div>

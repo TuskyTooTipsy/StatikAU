@@ -239,7 +239,7 @@ export default function MyGarage() {
 
   async function handleDraftUpload(file?: File | null) {
     if (!file || !viewerProfile) return;
-    const tempKey = `draft-${Date.now()}-${file.name}`;
+    const tempKey = `draft-${Date.now()}`;
     try {
       const uploaded = await uploadMediaFile(
         file,
@@ -253,6 +253,19 @@ export default function MyGarage() {
     } catch (error: any) {
       setMessage(error.message || 'Upload failed');
       setUploadProgress((prev) => ({ ...prev, [tempKey]: 0 }));
+    }
+  }
+
+
+  async function editMediaMeta(assetId: string) {
+    const displayTitle = window.prompt('Media title (public label, optional)', '') || '';
+    const caption = window.prompt('Caption (optional)', '') || '';
+    const altText = window.prompt('Alt text for accessibility (optional)', displayTitle || caption) || '';
+    try {
+      await networkApi.updateMedia(assetId, { displayTitle, caption, altText });
+      await load();
+    } catch (error: any) {
+      setMessage(error.message || 'Media metadata update failed');
     }
   }
 
@@ -314,7 +327,12 @@ export default function MyGarage() {
                     </div>
                   </div>
                 </div>
-                {vehicle.media?.length ? <MediaGrid media={vehicle.media} compact /> : <div className="text-sm text-silver/56">No gallery media attached yet.</div>}
+                {vehicle.media?.length ? <>
+                  <MediaGrid media={vehicle.media} compact />
+                  <div className="flex flex-wrap gap-2">
+                    {vehicle.media.map((asset, index) => <button key={asset.id} type="button" className="btn-secondary h-9 px-3 text-[10px]" onClick={() => void editMediaMeta(asset.id)}>Edit media {index + 1} label</button>)}
+                  </div>
+                </> : <div className="text-sm text-silver/56">No gallery media attached yet.</div>}
               </div>
             )) : (
               <div className="panel-blade text-sm text-silver/62">No vehicles added yet. Claim your first garage bay, pick the closest chassis data, or use custom entries for uncommon builds.</div>
@@ -426,7 +444,7 @@ export default function MyGarage() {
                 <span className="status-chip">{draftMediaIds.length} staged</span>
               </div>
               <input type="file" accept="image/*,video/*,.heic,.heif" className="field-sharp mt-4" multiple onChange={(e) => Array.from(e.target.files || []).forEach((file) => void handleDraftUpload(file))} />
-              {Object.keys(uploadProgress).length ? <div className="mt-4 grid gap-2">{Object.entries(uploadProgress).map(([key, value]) => <p key={key} className="text-xs uppercase tracking-[0.22em] text-silver/56">{key.split('-').slice(-1)[0]} • {value}%</p>)}</div> : null}
+              {Object.keys(uploadProgress).length ? <div className="mt-4 grid gap-2">{Object.entries(uploadProgress).map(([key, value], index) => <div key={key} className="space-y-2"><div className="flex items-center justify-between text-xs uppercase tracking-[0.22em] text-silver/56"><span>Uploading media {index + 1}</span><span>{value}%</span></div><div className="h-1 overflow-hidden bg-white/10"><div className="h-full bg-bone transition-all" style={{ width: `${Math.max(value, 4)}%` }} /></div></div>)}</div> : null}
             </div>
 
             <button disabled={submitting} className="btn-primary h-12 justify-center text-[11px]">{submitting ? 'Registering dossier…' : 'Add to garage'}</button>

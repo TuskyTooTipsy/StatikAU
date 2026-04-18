@@ -433,6 +433,7 @@ export const platformSummary = {
 
 export const accountNav = [
   { label: 'Profile', href: '/members/profile' },
+  { label: 'Discovery', href: '/members/discovery' },
   { label: 'Garage', href: '/members/garage' },
   { label: 'Posts', href: '/members/posts' },
   { label: 'Links', href: '/members/links' },
@@ -441,23 +442,27 @@ export const accountNav = [
 ];
 
 export const adminNav = [
-  { label: 'Admin Overview', href: '/admin' },
+  { label: 'Overview', href: '/admin' },
   { label: 'Approval Bay', href: '/admin/approvals' },
-  { label: 'Users', href: '/admin/users' },
   { label: 'Events', href: '/admin/events' },
   { label: 'Event Imports', href: '/admin/imports' },
-  { label: 'Official Posts', href: '/admin/posts' },
-  { label: 'Community Submissions', href: '/admin/submissions' },
-  { label: 'Comments / Reports', href: '/admin/reports' },
-  { label: 'Messages', href: '/admin/messages' },
-  { label: 'Media', href: '/admin/media' },
+  { label: 'Members / Users', href: '/admin/users' },
   { label: 'Garage / Vehicles', href: '/admin/garage' },
+  { label: 'Communities / Groups', href: '/admin/communities' },
+  { label: 'Posts', href: '/admin/posts' },
+  { label: 'Articles', href: '/admin/articles' },
+  { label: 'News', href: '/admin/news' },
+  { label: 'AI Writer', href: '/admin/ai-writer' },
+  { label: 'Business Directory', href: '/admin/businesses' },
   { label: 'Sponsors / Deals', href: '/admin/sponsors' },
-  { label: 'Shop Control', href: '/admin/shop' },
-  { label: 'Announcements', href: '/admin/announcements' },
+  { label: 'Media Library', href: '/admin/media' },
+  { label: 'Messages', href: '/admin/messages' },
+  { label: 'Reports', href: '/admin/reports' },
+  { label: 'QR / Short Links', href: '/admin/links' },
   { label: 'Analytics', href: '/admin/analytics' },
-  { label: 'Site Settings', href: '/admin/settings' },
-  { label: 'Roles / Permissions', href: '/admin/roles' },
+  { label: 'Roles', href: '/admin/roles' },
+  { label: 'Shop', href: '/admin/shop' },
+  { label: 'Settings', href: '/admin/settings' },
   { label: 'Audit Logs', href: '/admin/audit-logs' },
 ];
 

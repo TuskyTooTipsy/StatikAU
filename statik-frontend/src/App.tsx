@@ -11,6 +11,7 @@ import PublicProfilePage from './pages/ProfileDetail';
 import ShopPage from './pages/Shop';
 import MembersDashboardPage from './pages/members/Dashboard';
 import FriendsPage from './pages/members/Friends';
+import MemberDiscoveryPage from './pages/members/Discovery';
 import CommunitiesPage from './pages/members/Communities';
 import CommunityDetailPage from './pages/members/CommunityDetail';
 import ProfileSettingsPage from './pages/members/ProfileSettings';
@@ -37,7 +38,15 @@ import AdminApprovalBayPage from './pages/admin/ApprovalBay';
 import AdminMessagesPage from './pages/admin/Messages';
 import AdminMediaPage from './pages/admin/Media';
 import AdminGaragePage from './pages/admin/Garage';
+import AdminLinksPage from './pages/admin/Links';
+import AdminContentCMS from './pages/admin/ContentCMS';
+import AdminAiWriterPage from './pages/admin/AiWriter';
+import AdminBusinessesPage from './pages/admin/Businesses';
 import ShortRedirect from './pages/ShortRedirect';
+import ContentIndex from './pages/ContentIndex';
+import ContentDetail from './pages/ContentDetail';
+import BusinessesPage from './pages/Businesses';
+import BusinessDetailPage from './pages/BusinessDetail';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -48,6 +57,12 @@ export default function App() {
         <Route path="/events" element={<EventsPage />} />
         <Route path="/events/:slug" element={<EventDetailPage />} />
         <Route path="/submit" element={<SubmitPage />} />
+        <Route path="/articles" element={<ContentIndex type="articles" />} />
+        <Route path="/articles/:slug" element={<ContentDetail type="articles" />} />
+        <Route path="/news" element={<ContentIndex type="news" />} />
+        <Route path="/news/:slug" element={<ContentDetail type="news" />} />
+        <Route path="/businesses" element={<BusinessesPage />} />
+        <Route path="/businesses/:slug" element={<BusinessDetailPage />} />
         <Route path="/profiles/:slug" element={<PublicProfilePage />} />
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/join" element={<JoinPage />} />
@@ -56,6 +71,7 @@ export default function App() {
 
         <Route path="/members" element={<ProtectedRoute><MembersDashboardPage /></ProtectedRoute>} />
         <Route path="/members/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
+        <Route path="/members/discovery" element={<ProtectedRoute><MemberDiscoveryPage /></ProtectedRoute>} />
         <Route path="/members/communities" element={<ProtectedRoute><CommunitiesPage /></ProtectedRoute>} />
         <Route path="/members/communities/:slug" element={<ProtectedRoute><CommunityDetailPage /></ProtectedRoute>} />
         <Route path="/members/profile" element={<ProtectedRoute><ProfileSettingsPage /></ProtectedRoute>} />
@@ -66,10 +82,16 @@ export default function App() {
         <Route path="/members/analytics" element={<ProtectedRoute><MyAnalytics /></ProtectedRoute>} />
 
         
+        <Route path="/admin" element={<ProtectedRoute adminOnly><AdminOverviewPage /></ProtectedRoute>} />
         <Route path="/admin/approvals" element={<ProtectedRoute adminOnly><AdminApprovalBayPage /></ProtectedRoute>} />
         <Route path="/admin/messages" element={<ProtectedRoute adminOnly><AdminMessagesPage /></ProtectedRoute>} />
         <Route path="/admin/media" element={<ProtectedRoute adminOnly><AdminMediaPage /></ProtectedRoute>} />
         <Route path="/admin/garage" element={<ProtectedRoute adminOnly><AdminGaragePage /></ProtectedRoute>} />
+        <Route path="/admin/links" element={<ProtectedRoute adminOnly><AdminLinksPage /></ProtectedRoute>} />
+        <Route path="/admin/articles" element={<ProtectedRoute adminOnly><AdminContentCMS type="article" /></ProtectedRoute>} />
+        <Route path="/admin/news" element={<ProtectedRoute adminOnly><AdminContentCMS type="news" /></ProtectedRoute>} />
+        <Route path="/admin/ai-writer" element={<ProtectedRoute adminOnly><AdminAiWriterPage /></ProtectedRoute>} />
+        <Route path="/admin/businesses" element={<ProtectedRoute adminOnly><AdminBusinessesPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsersPage /></ProtectedRoute>} />
         <Route path="/admin/imports" element={<ProtectedRoute adminOnly><AdminImportsPage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminSettingsPage /></ProtectedRoute>} />
@@ -77,6 +99,7 @@ export default function App() {
         <Route path="/admin/events" element={<ProtectedRoute adminOnly><AdminEventsPage /></ProtectedRoute>} />
         <Route path="/admin/posts" element={<ProtectedRoute adminOnly><AdminPostsPage /></ProtectedRoute>} />
         <Route path="/admin/submissions" element={<ProtectedRoute adminOnly><AdminSubmissionsPage /></ProtectedRoute>} />
+        <Route path="/admin/communities" element={<ProtectedRoute adminOnly><AdminSubmissionsPage /></ProtectedRoute>} />
         <Route path="/admin/reports" element={<ProtectedRoute adminOnly><AdminReportsPage /></ProtectedRoute>} />
         <Route path="/admin/sponsors" element={<ProtectedRoute adminOnly><AdminSponsorsPage /></ProtectedRoute>} />
         <Route path="/admin/shop" element={<ProtectedRoute adminOnly><AdminShopPage /></ProtectedRoute>} />
