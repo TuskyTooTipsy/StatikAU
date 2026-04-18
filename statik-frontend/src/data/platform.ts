@@ -432,14 +432,12 @@ export const platformSummary = {
 };
 
 export const accountNav = [
-  { label: 'Dashboard', href: '/account' },
-  { label: 'My Profile', href: '/account/profile' },
-  { label: 'My Garage', href: '/account/garage' },
-  { label: 'My Links', href: '/account/links' },
-  { label: 'My Analytics', href: '/account/analytics' },
-  { label: 'My Submissions', href: '/account/submissions' },
-  { label: 'My QR Code', href: '/account/qr' },
-  { label: 'Account Settings', href: '/account/settings' },
+  { label: 'Profile', href: '/members/profile' },
+  { label: 'Garage', href: '/members/garage' },
+  { label: 'Posts', href: '/members/posts' },
+  { label: 'Links', href: '/members/links' },
+  { label: 'QR + share', href: '/members/qr' },
+  { label: 'Analytics', href: '/members/analytics' },
 ];
 
 export const adminNav = [

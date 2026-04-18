@@ -49,7 +49,7 @@ export default function Home() {
               <div className="mt-6 grid gap-4 text-sm text-silver/72">
                 <div className="feature-row"><span className="feature-kicker">01</span><div><h3 className="feature-title">Event intent is social</h3><p>Interested, attending, and maybe are real states with real people attached.</p></div></div>
                 <div className="feature-row"><span className="feature-kicker">02</span><div><h3 className="feature-title">Communities have real chat</h3><p>Group chat supports normal messages, event attachments, and privacy-aware location sharing.</p></div></div>
-                <div className="feature-row"><span className="feature-kicker">03</span><div><h3 className="feature-title">Profiles are meant to be found</h3><p>Admin-curated featured members, verified builders, standout accounts, and friend-driven discovery.</p></div></div>
+                <div className="feature-row"><span className="feature-kicker">03</span><div><h3 className="feature-title">Profiles now carry real build gravity</h3><p>Direct media posts, garages, short links, QR sharing, and profile traction make the account layer matter.</p></div></div>
               </div>
             </div>
           </div>
@@ -136,9 +136,9 @@ export default function Home() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="panel-blade"><h3>Friends</h3><p>Send requests, accept or reject, remove friends, and build a scene map that feels personal instead of anonymous.</p></div>
-              <div className="panel-blade"><h3>Communities</h3><p>Create public or private car communities with member lists, owner/admin controls, and real group chat.</p></div>
+              <div className="panel-blade"><h3>Communities</h3><p>Create public or private car communities with member lists, owner/admin controls, real group posts, and hosted-event identity.</p></div>
               <div className="panel-blade"><h3>Chat attachments</h3><p>Drop events directly into chat or send your live location through a privacy-aware location message.</p></div>
-              <div className="panel-blade"><h3>Member discovery</h3><p>Suggested profiles, verified standouts, community membership, and event participation all become visible in the member hub.</p></div>
+              <div className="panel-blade"><h3>Member discovery</h3><p>Suggested profiles, verified standouts, garages, group affiliation, and event participation become visible in the member hub.</p></div>
             </div>
           </div>
         </div>

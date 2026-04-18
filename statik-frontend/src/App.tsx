@@ -13,6 +13,11 @@ import FriendsPage from './pages/members/Friends';
 import CommunitiesPage from './pages/members/Communities';
 import CommunityDetailPage from './pages/members/CommunityDetail';
 import ProfileSettingsPage from './pages/members/ProfileSettings';
+import MyGarage from './pages/account/MyGarage';
+import MyPosts from './pages/account/MyPosts';
+import MyLinks from './pages/account/MyLinks';
+import MyQRCode from './pages/account/MyQRCode';
+import MyAnalytics from './pages/account/MyAnalytics';
 import AdminOverviewPage from './pages/admin/Overview';
 import NotFound from './pages/NotFound';
 
@@ -33,6 +38,11 @@ export default function App() {
         <Route path="/members/communities" element={<ProtectedRoute><CommunitiesPage /></ProtectedRoute>} />
         <Route path="/members/communities/:slug" element={<ProtectedRoute><CommunityDetailPage /></ProtectedRoute>} />
         <Route path="/members/profile" element={<ProtectedRoute><ProfileSettingsPage /></ProtectedRoute>} />
+        <Route path="/members/garage" element={<ProtectedRoute><MyGarage /></ProtectedRoute>} />
+        <Route path="/members/posts" element={<ProtectedRoute><MyPosts /></ProtectedRoute>} />
+        <Route path="/members/links" element={<ProtectedRoute><MyLinks /></ProtectedRoute>} />
+        <Route path="/members/qr" element={<ProtectedRoute><MyQRCode /></ProtectedRoute>} />
+        <Route path="/members/analytics" element={<ProtectedRoute><MyAnalytics /></ProtectedRoute>} />
 
         <Route path="/admin" element={<ProtectedRoute adminOnly><AdminOverviewPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />

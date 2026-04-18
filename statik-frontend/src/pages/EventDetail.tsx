@@ -74,6 +74,7 @@ export default function EventDetailPage() {
             <h1 className="headline-lg mt-3">{event.name}</h1>
             <p className="mt-4 text-base text-silver/72">{event.location} • {event.date} • {event.time}</p>
             <p className="body-muted mt-5 max-w-3xl">{event.description}</p>
+            {event.hostCommunity ? <p className="mt-4 text-xs uppercase tracking-[0.22em] text-silver/56">Hosted by <Link to={`/members/communities/${event.hostCommunity.slug}`} className="text-bone">{event.hostCommunity.name}</Link></p> : null}
           </div>
           <div className="panel-cut p-5">
             <p className="eyebrow">Live intent</p>
@@ -102,7 +103,7 @@ export default function EventDetailPage() {
       <div className="panel-cut p-6 md:p-8">
         <p className="eyebrow">Discussion flow</p>
         <h2 className="headline-md mt-3">Event mentions are built to be dropped into community chat.</h2>
-        <p className="body-muted mt-4 max-w-3xl">Members can attach this event directly inside any community they’re in, so the social planning layer lives with the group instead of dying in isolated DMs.</p>
+        <p className="body-muted mt-4 max-w-3xl">Members can attach this event directly inside community posts and live group chat, so the planning layer lives with the crew instead of dying in isolated DMs.</p>
       </div>
     </div>
   ) : null;
