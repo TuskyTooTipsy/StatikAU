@@ -35,6 +35,8 @@ export function redirectRouter() {
     const href = resolveTargetHref(db, link.targetType, link.targetId);
     if (!href) return res.status(404).json({ error: 'Target no longer exists' });
 
+    const sessionKey = hashVisitorKey(`${req.ip}:${req.headers['user-agent'] || 'unknown'}:${req.query.src === 'qr' ? 'qr' : 'shortlink'}`);
+
     mutateDb((runtime) => {
       const target = runtime.shortLinks.find((item) => item.id === link.id);
       if (!target) return;
@@ -44,7 +46,7 @@ export function redirectRouter() {
       target.updatedAt = nowIso();
       trackAnalyticsEvent(runtime, {
         actorUserId: null,
-        sessionKey: hashVisitorKey(req),
+        sessionKey,
         source: isQr ? 'qr' : 'shortlink',
         eventType: isQr ? 'qr_scan' : 'shortlink_click',
         targetType: link.targetType,
