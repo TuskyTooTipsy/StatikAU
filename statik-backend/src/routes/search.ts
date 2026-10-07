@@ -9,7 +9,7 @@ export default function searchRouter() {
     if (!q) return res.json([]);
 
     const db = readDb();
-    const activeUserIds = new Set(db.users.filter((user) => !user.banned && !user.suspendedUntil).map((user) => user.id));
+    const activeUserIds = new Set(db.users.filter((user) => !user.isBanned && !(user.suspensionEndsAt && new Date(user.suspensionEndsAt).getTime() > Date.now())).map((user) => user.id));
     const publishedContent = getPublishedContent(db);
     const results = [
       ...db.events.filter((event) => event.approvalStatus === 'approved' && `${event.name} ${event.location} ${event.description} ${event.category}`.toLowerCase().includes(q)).map((event) => ({ id: event.id, type: 'event', title: event.name, description: event.location, href: `/events/${event.slug}` })),

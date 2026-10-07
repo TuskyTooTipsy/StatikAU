@@ -29,12 +29,15 @@ ADMIN_EMAIL=...
 ADMIN_PASSWORD=...
 ADMIN_DISPLAY_NAME=STATIK Admin
 JWT_SECRET=...
+UPLOAD_SIGNING_SECRET=...
 MAX_UPLOAD_BYTES=41943040
 STORAGE_PROVIDER=local
 UPLOADS_DIR=/data/uploads
 ```
 
 Add a Railway volume mounted at `/data` while local storage is active.
+
+Public registration never grants administrator access. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` to create the initial administrator. Production startup stops if no administrator exists without those credentials, or if `UPLOAD_SIGNING_SECRET` is missing. Use a random secret of at least 32 characters for upload signing.
 
 ## Netlify frontend
 

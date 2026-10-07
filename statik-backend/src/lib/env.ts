@@ -15,6 +15,7 @@ export const envSchema = z.object({
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_DISPLAY_NAME: z.string().min(2).max(40).optional(),
   JWT_SECRET: z.string().min(16).optional(),
+  UPLOAD_SIGNING_SECRET: z.string().min(32).optional(),
   PUBLIC_SERVER_URL: z.string().optional(),
   MAX_UPLOAD_BYTES: z.string().default(String(40 * 1024 * 1024)),
   STORAGE_PROVIDER: z.string().default('local'),

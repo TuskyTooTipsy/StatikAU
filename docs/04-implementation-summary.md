@@ -20,7 +20,7 @@
 
 ## Real systems now wired
 - Registration and sign-in
-- First-account admin bootstrap with no seeded fake admin user
+- Administrator creation through the configured `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables
 - Profile editing
 - Event submission and admin approval
 - Event RSVP states: interested / attending / maybe
@@ -37,4 +37,4 @@
 ## Operational notes
 - Runtime persistence is file-backed in `statik-backend/data/runtime-db.json`
 - Default state is empty and production-safe; nothing is pre-seeded into the live network layer
-- The first account created on a fresh install becomes the admin account
+- Public registrations always create standard user accounts. Production startup fails closed when no administrator exists and bootstrap credentials are missing.

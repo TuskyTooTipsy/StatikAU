@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { networkApi } from '../api/network';
 import { uploadMediaFile } from '../api/uploads';
@@ -36,11 +36,8 @@ export default function JoinPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [needsBootstrap, setNeedsBootstrap] = useState(false);
   const applyAuthPayload = useSessionStore((state) => state.applyAuthPayload);
   const navigate = useNavigate();
-
-  useEffect(() => { networkApi.getPublicPlatform().then((payload) => setNeedsBootstrap(payload.needsAdminBootstrap)).catch(() => undefined); }, []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -101,8 +98,6 @@ export default function JoinPage() {
         <p className="eyebrow">Create account / Step {step} of 4</p>
         <h1 className="headline-lg mt-3">Get inside the network with a profile that can actually be found.</h1>
         <p className="body-muted mt-4">Optional details help events, garages, members, groups, and approved businesses connect without forcing a fake setup.</p>
-        {needsBootstrap ? <div className="mt-5 panel-blade"><h3>Founding admin setup</h3><p>The first account on a fresh install becomes the admin account so the platform can be configured without fake seeded users.</p></div> : null}
-
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           {step === 1 ? (
             <section className="grid gap-4">

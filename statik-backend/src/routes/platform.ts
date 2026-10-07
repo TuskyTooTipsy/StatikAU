@@ -124,7 +124,6 @@ export default function platformRouter() {
         approvedBusinesses: db.businessListings.filter((item) => item.status === 'approved').length,
       },
       foundingPhase: db.users.length < 25,
-      needsAdminBootstrap: db.users.length === 0,
     });
   });
 

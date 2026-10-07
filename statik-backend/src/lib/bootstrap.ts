@@ -6,15 +6,33 @@ export function ensureBootstrapAdmin() {
   const email = env.ADMIN_EMAIL?.trim().toLowerCase();
   const password = env.ADMIN_PASSWORD;
   const displayName = env.ADMIN_DISPLAY_NAME?.trim() || 'STATIK Admin';
+  const production = env.NODE_ENV === 'production';
 
-  if (!email && !password) return;
+  if (production && !env.UPLOAD_SIGNING_SECRET) {
+    throw new Error('UPLOAD_SIGNING_SECRET must be set before starting the production service.');
+  }
+
+  const existingDb = readDb();
+  const hasAdmin = existingDb.users.some((user) => user.role === 'admin');
+
+  if (!email && !password) {
+    if (production && !hasAdmin) {
+      throw new Error('No production administrator exists. Set ADMIN_EMAIL and ADMIN_PASSWORD before starting the service.');
+    }
+    if (!hasAdmin) {
+      console.warn('[bootstrap-admin] No admin exists yet. Public registrations will remain standard users; configure ADMIN_EMAIL and ADMIN_PASSWORD to create an administrator.');
+    }
+    return;
+  }
 
   if (!email || !password) {
+    if (production && !hasAdmin) {
+      throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must both be set before starting production without an existing administrator.');
+    }
     console.warn('[bootstrap-admin] ADMIN_EMAIL and ADMIN_PASSWORD must both be set. Skipping admin bootstrap.');
     return;
   }
 
-  const existingDb = readDb();
   const existingUser = existingDb.users.find((item) => item.email.toLowerCase() === email);
 
   if (existingUser) {

@@ -56,13 +56,12 @@ export default function authRouter() {
     const existing = readDb().users.find((item) => item.email.toLowerCase() === email.toLowerCase());
     if (existing) return res.status(409).json({ error: 'An account with that email already exists' });
 
-    let result: { userId: string; foundingAdmin: boolean };
+    let result: { userId: string };
     try {
       result = mutateDb((db) => {
         if (!db.site.registrationOpen) {
           throw new Error('Registration is currently closed');
         }
-        const firstUser = db.users.length === 0;
         const userId = createId('user');
         const profileId = createId('profile');
         const slug = uniqueSlug(parsed.data.username || displayName || slugify(email.split('@')[0]), db.profiles.map((item) => item.slug));
@@ -103,7 +102,7 @@ export default function authRouter() {
           email: email.toLowerCase(),
           passwordHash: hashPassword(password),
           displayName,
-          role: firstUser ? 'admin' : 'user',
+          role: 'user',
           profileId,
           createdAt,
           termsAcceptedAt: parsed.data.termsAccepted ? createdAt : null,
@@ -144,8 +143,8 @@ export default function authRouter() {
           });
         }
 
-        logAudit(db, userId, 'register', 'user', userId, firstUser ? 'First account auto-promoted to admin' : undefined);
-        return { userId, foundingAdmin: firstUser };
+        logAudit(db, userId, 'register', 'user', userId);
+        return { userId };
       });
     } catch (error: any) {
       return res.status(400).json({ error: error.message || 'Could not create account' });
@@ -155,7 +154,6 @@ export default function authRouter() {
     const db = readDb();
     return res.status(201).json({
       token,
-      foundingAdmin: result.foundingAdmin,
       ...sanitizeAuthPayload(db, result.userId),
     });
   });

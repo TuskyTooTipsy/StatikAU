@@ -504,7 +504,6 @@ export interface PublicPlatformPayload {
     approvedBusinesses?: number;
   };
   foundingPhase: boolean;
-  needsAdminBootstrap: boolean;
 }
 
 export interface MemberHomePayload {
@@ -524,7 +523,6 @@ export interface MemberHomePayload {
 
 export interface AuthPayload {
   token?: string;
-  foundingAdmin?: boolean;
   user: NetworkUser;
   profile: NetworkProfile;
   site: NetworkSiteState;

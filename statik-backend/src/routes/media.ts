@@ -24,7 +24,15 @@ const MIME_BY_EXT: Record<string, string> = {
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 const ALL_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
-const SIGNING_SECRET = env.JWT_SECRET || env.ADMIN_PASSWORD || 'statik-local-upload-secret';
+const DEVELOPMENT_UPLOAD_SIGNING_SECRET = 'statik-local-upload-secret';
+
+function getUploadSigningSecret() {
+  if (env.UPLOAD_SIGNING_SECRET) return env.UPLOAD_SIGNING_SECRET;
+  if (env.NODE_ENV === 'production') {
+    throw new Error('UPLOAD_SIGNING_SECRET must be configured before upload URLs can be signed.');
+  }
+  return DEVELOPMENT_UPLOAD_SIGNING_SECRET;
+}
 
 function inferMimeType(fileName: string, incomingMimeType: string) {
   if (incomingMimeType && incomingMimeType !== 'application/octet-stream') return incomingMimeType;
@@ -40,7 +48,7 @@ function resolveServerOrigin(req?: Request) {
 }
 
 function signUpload(uploadId: string, assetId: string, expiresAt: string) {
-  return createHmac('sha256', SIGNING_SECRET).update(`${uploadId}:${assetId}:${expiresAt}`).digest('hex');
+  return createHmac('sha256', getUploadSigningSecret()).update(`${uploadId}:${assetId}:${expiresAt}`).digest('hex');
 }
 
 function ensureUploadPermission(viewer: any, ownerType: string, ownerId: string) {

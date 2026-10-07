@@ -163,7 +163,7 @@ export default function profilesRouter() {
           featuredVehicle: garage.find((vehicle: any) => vehicle.featured) || garage[0] || null,
         };
       });
-    return res.json({ enabled: db.site.newestMembersEnabled !== false, items });
+    return res.json({ enabled: true, items });
   });
 
   router.get('/me/garage', requireAuth, async (req, res) => {
